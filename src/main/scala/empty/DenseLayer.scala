@@ -8,11 +8,11 @@ import chisel3._
 // - signed and unsigned ints, fixed point?, floating point?
 // - custom quantization schemes
 abstract class NeuronCompute {
-  type I <: Bits // Input type
-  type W <: Bits // Weight type
-  type M <: Bits // Multiplication result type
-  type A <: Bits // Accumulator type
-  type O <: Bits // Output type
+  type I <: Bits // Input
+  type W <: Bits // Weight
+  type M <: Bits // Multiplication result
+  type A <: Bits // Accumulator
+  type O <: Bits // Output
 
   // Generator methods: Chisel needs concrete instances (not just the types) to clone
   // when creating Vecs, Regs, etc. These methods provide those instances.
@@ -22,10 +22,17 @@ abstract class NeuronCompute {
   def genA: A
   def genO: O
 
+  // Ops
+  def mul(i: I, w: W): M
+  def toAccum(m: M): A
+  def addAccum(a1: A, a2: A): A
+  def quantize(a: A): O
+
+  // Helper to convert Scala Int to weight type (handles signed vs unsigned)
+  def weightScalaToChisel(value: Int): W
+
   // def rngA:              Ring[A]
   // def binA:              BinaryRepresentation[A]
-  // def mul:               (I, W) => M
-  // def addVec:            Vec[M] => A
   // def shiftRound:        (A, Int) => A
   // def shiftRoundDynamic: (A, UInt, Bool) => A
   // def actFn:             (A, A) => O
@@ -43,6 +50,13 @@ class BasicNeuronCompute extends NeuronCompute {
   def genM = UInt(16.W)
   def genA = UInt(32.W)
   def genO = UInt(8.W)
+
+  def mul(i: I, w: W): M = (i * w).asUInt
+  def toAccum(m: M): A = m.asTypeOf(genA)
+  def addAccum(a1: A, a2: A): A = a1 + a2
+  // TODO: Actual quantization
+  def quantize(a: A): O = a.asTypeOf(genO)
+  def weightScalaToChisel(value: Int): W = value.U.asTypeOf(genW)
 }
 
 /*

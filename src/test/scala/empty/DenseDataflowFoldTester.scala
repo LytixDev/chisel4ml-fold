@@ -24,13 +24,13 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(20, 13)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
 
     test(new DenseDataflowFold(layer)) { dut =>
       // Set inputs on the bits field of Decoupled
       for (i <- 0 until 2) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U.asInstanceOf[dut.nc.I])
         }
       }
 
@@ -48,7 +48,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       // Check outputs
       for (i <- 0 until 2) {
         for (j <- 0 until 2) {
-          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U)
+          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U.asInstanceOf[dut.nc.O])
         }
       }
     }
@@ -72,12 +72,12 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(20, 13)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
 
     test(new DenseDataflowFold(layer)) { dut =>
       for (i <- 0 until 2) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U.asInstanceOf[dut.nc.I])
         }
       }
 
@@ -94,7 +94,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
 
       for (i <- 0 until 2) {
         for (j <- 0 until 2) {
-          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U)
+          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U.asInstanceOf[dut.nc.O])
         }
       }
     }
@@ -119,12 +119,12 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(20, 13)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4, neuronCompute = new BasicNeuronCompute)
 
     test(new DenseDataflowFold(layer)) { dut =>
       for (i <- 0 until 2) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U.asInstanceOf[dut.nc.I])
         }
       }
 
@@ -141,7 +141,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
 
       for (i <- 0 until 2) {
         for (j <- 0 until 2) {
-          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U)
+          dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U.asInstanceOf[dut.nc.O])
         }
       }
     }
