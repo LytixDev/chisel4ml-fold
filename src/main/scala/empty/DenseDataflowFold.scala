@@ -23,7 +23,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   require(layer.PEsPerOutput >= 1 && layer.PEsPerOutput <= layer.n)
   require(layer.n % layer.PEsPerOutput == 0)
-  val cycles = layer.n / layer.PEsPerOutput
+  val latency = layer.n / layer.PEsPerOutput
 
   // TODO: Consider storing this in BRAM?
   val weights = VecInit(layer.weights.map(row =>
@@ -31,7 +31,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   ))
 
   // Computation state
-  val cycleCounter = RegInit(0.U(log2Ceil(cycles + 1).W))
+  val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
   val computing = RegInit(false.B)
   // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
   val inputReg = Reg(Vec(layer.m, Vec(layer.n, UInt(8.W)))) // TODO: Is this stored in BRAM?
@@ -56,9 +56,9 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     inputReg := io.inputIn.bits
     computing := true.B
     cycleCounter := 1.U
-  }.elsewhen(computing && cycleCounter < (cycles - 1).U) {
+  }.elsewhen(computing && cycleCounter < (latency - 1).U) {
     cycleCounter := cycleCounter + 1.U
-  }.elsewhen(computing && cycleCounter === (cycles - 1).U) {
+  }.elsewhen(computing && cycleCounter === (latency - 1).U) {
     computing := false.B
     cycleCounter := 0.U
   }
@@ -89,7 +89,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
-  outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (cycles - 1).U, false.B)
+  outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
   outputFifo.io.enq.bits := accumulators
 
   // External output comes from the output FIFO
