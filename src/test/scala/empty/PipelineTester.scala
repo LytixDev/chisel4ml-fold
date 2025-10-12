@@ -28,8 +28,8 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val expectedCycles = 5;
 
     // area cost in terms of muls is the same for these two
-    val layer1 = DenseLayer(m = 1, n = 4, k = 2, weights = weights1, PEsPerOutput = 1)
-    val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2)
+    val layer1 = DenseLayer(m = 1, n = 4, k = 2, weights = weights1, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
+    val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
 
     val layers = Array(layer1, layer2)
 
@@ -71,7 +71,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     // We use very small numbers for the weights and inputs because the quantization stuff is not implemented yet :-)
     val layers = Array.fill(4) {
       val weights = Array.fill(4, 4)(rand.nextInt(2))
-      DenseLayer(m = 1, n = 4, k = 4, weights = weights, PEsPerOutput = 1)
+      DenseLayer(m = 1, n = 4, k = 4, weights = weights, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
     }
 
     val input1 = Array.fill(1, 4)(rand.nextInt(2))
@@ -199,7 +199,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       val PEsPerOutput = validPEs(rand.nextInt(validPEs.length))
 
       currentN = k // Next layer's n must match this layer's k
-      DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput)
+      DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput, neuronCompute = new BasicNeuronCompute)
     }
   }
 
@@ -292,7 +292,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
         val PEsPerOutput = validPEs(rand.nextInt(validPEs.length))
 
         currentN = k // Next layer's n must match this layer's k
-        DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput)
+        DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput, neuronCompute = new BasicNeuronCompute)
       }
 
       // println(s"\n=== Test $testNum: ${nLayers} layers, dimensions: ${layers.map(l => s"${l.n}x${l.k}(PE=${l.PEsPerOutput})").mkString(" -> ")} ===")
