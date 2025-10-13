@@ -1,7 +1,8 @@
 package empty
 
 // TODO: Experiment with the new mlir based backend
-import chisel3.stage.ChiselStage
+//import chisel3.stage.ChiselStage
+import circt.stage.ChiselStage
 import empty.abstractions.{BasicNeuronCompute, DenseLayer}
 import empty.hw.Pipeline
 
@@ -22,8 +23,8 @@ object Main extends App {
 
   val nc = new BasicNeuronCompute()
 
-  val layer1 = DenseLayer(m = l1m, n = l1n, k = l1k, weights = weights1, PEsPerOutput = 28, neuronCompute = nc)
-  val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 1, neuronCompute = nc)
+  val layer1 = DenseLayer(m = l1m, n = l1n, k = l1k, weights = weights1, PEsPerOutput = 56, neuronCompute = nc)
+  val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 2, neuronCompute = nc)
 
   val layers = Array(layer1, layer2)
 
@@ -34,11 +35,11 @@ object Main extends App {
   println(s"  Total multipliers: ${layers.map(l => l.m * l.k * l.PEsPerOutput).sum}")
 
   // Generate Verilog
-  println("\nGenerating Verilog...")
-  (new ChiselStage).emitVerilog(
+  println("\nGenerating SystemVerilog...")
+  ChiselStage.emitSystemVerilogFile(
     new Pipeline(layers),
-    Array("--target-dir", "generated")
+    args = Array("--target-dir", "generated")
   )
 
-  println("\nVerilog generated successfully in generated/Pipeline.v")
+  println("\nSystemVerilog generated successfully in generated/Pipeline.sv")
 }
