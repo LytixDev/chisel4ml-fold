@@ -1,6 +1,6 @@
 package empty.sim
 
-import empty.{DenseLayer, QuantizationUtils}
+import empty.abstractions.{DenseLayer, QuantizationUtils}
 
 class DenseDataflowFoldSim(layer: DenseLayer) {
   val nc = layer.neuronCompute

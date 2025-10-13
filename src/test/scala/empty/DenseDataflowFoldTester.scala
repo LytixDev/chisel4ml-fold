@@ -2,6 +2,7 @@ package empty
 
 import chisel3._
 import chiseltest._
+import empty.abstractions.{BasicNeuronCompute, DenseLayer}
 import empty.hw.DenseDataflowFold
 import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec

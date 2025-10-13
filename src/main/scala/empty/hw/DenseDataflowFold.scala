@@ -2,7 +2,7 @@ package empty.hw
 
 import chisel3._
 import chisel3.util.{Decoupled, Queue, log2Ceil}
-import empty.DenseLayer
+import empty.abstractions.DenseLayer
 
 /*
  * Dense layer with folding.

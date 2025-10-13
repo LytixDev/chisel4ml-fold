@@ -3,6 +3,7 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
+import empty.abstractions.{BasicNeuronCompute, DenseLayer}
 import empty.hw.Pipeline
 import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec

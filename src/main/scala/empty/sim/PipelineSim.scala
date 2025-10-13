@@ -1,6 +1,6 @@
 package empty.sim
 
-import empty.DenseLayer
+import empty.abstractions.DenseLayer
 
 class PipelineSim(layers: Array[DenseLayer]) {
   require(layers.nonEmpty, "Pipeline must have at least one layer")
