@@ -11,3 +11,9 @@ Run the tests with:
 ```bash
 make test
 ```
+
+compile:
+```bash
+sbt stage
+./target/universal/stage/bin/chisel4ml-fold
+```

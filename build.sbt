@@ -1,3 +1,5 @@
+enablePlugins(JavaAppPackaging)
+
 scalacOptions ++= Seq(
   "-deprecation",
   "-feature",
