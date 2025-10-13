@@ -3,6 +3,7 @@ package empty
 import chisel3._
 import chiseltest._
 import empty.hw.DenseDataflowFold
+import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
@@ -19,13 +20,10 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    // Should take 2 cycles with 2 PEs per output
-    val expected = Array(
-      Array(8, 5),
-      Array(20, 13)
-    )
-
     val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
+
+    val sim = new DenseDataflowFoldSim(layer)
+    val expected = sim.compute(input)
 
     test(new DenseDataflowFold(layer)) { dut =>
       // Set inputs on the bits field of Decoupled
@@ -46,7 +44,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.clock.step(1)
       }
 
-      // Check outputs
+      // Check outputs against simulation
       for (i <- 0 until 2) {
         for (j <- 0 until 2) {
           dut.io.outputOut.bits(i)(j).expect(expected(i)(j).U.asInstanceOf[dut.nc.O])
@@ -68,12 +66,9 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val expected = Array(
-      Array(8, 5),
-      Array(20, 13)
-    )
-
     val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
+    val sim = new DenseDataflowFoldSim(layer)
+    val expected = sim.compute(input)
 
     test(new DenseDataflowFold(layer)) { dut =>
       for (i <- 0 until 2) {
@@ -115,12 +110,9 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val expected = Array(
-      Array(8, 5),
-      Array(20, 13)
-    )
-
     val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4, neuronCompute = new BasicNeuronCompute)
+    val sim = new DenseDataflowFoldSim(layer)
+    val expected = sim.compute(input)
 
     test(new DenseDataflowFold(layer)) { dut =>
       for (i <- 0 until 2) {

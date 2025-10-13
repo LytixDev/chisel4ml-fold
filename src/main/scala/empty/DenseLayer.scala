@@ -15,28 +15,27 @@ import chisel3._
 // NOTE to self: Sealed trait ensures all variants are defined in this file, enabling exhaustive pattern matching.
 // Also: in Chisel we need a concrete hardware instance with width information. That's why the output type also
 //       has to be an input
-sealed trait QuantizationScheme {
-  def quantize[T <: Bits, O <: Bits](value: T, outputTemplate: O): O
-}
 
-// Uniform Symmetric Quantization, signed
-// Z = 0, scale = 2^(S)
-case class UniformSymmetricQuant(S: Int) extends QuantizationScheme {
-  def quantize[T <: Bits, O <: Bits](value: T, outputTemplate: O): O = {
-    val shifted = (value.asUInt << S).asSInt
-    // TODO: Add rounding strategies
-    shifted.asTypeOf(outputTemplate)
-  }
-}
 
-// Uniform Asymmetric Quantization, unsigned
-case class UniformAsymmetricQuant(S: Int, Z: Int) extends QuantizationScheme {
-  def quantize[T <: Bits, O <: Bits](value: T, outputTemplate: O): O = {
-    // val shifted = value.asUInt >> S
-    // val withZeroPoint = shifted + Z.asInstanceOf
-    // // TODO: Add clipping
-    // withZeroPoint.asTypeOf(outputTemplate)
-    0.asTypeOf(outputTemplate)
+// Chisel4ml's ShiftRoundable.scala
+object QuantizationUtils {
+  // shift is a negative number
+  // pAct is the value to be requantized
+  def shiftRoundUIntStatic(pAct: UInt, shift: Int): UInt = shift.compare(0) match {
+    case 0 => pAct
+    case 1 => pAct << shift
+    case -1 =>
+      if (pAct.getWidth > shift) {
+        val shifted = (pAct >> shift.abs).asUInt
+        val sign = pAct(pAct.getWidth - 1)
+        val nsign = !sign
+        val fDec = pAct(shift.abs - 1) // first (most significnat) decimal number
+        val rest = if (shift > 1) VecInit(pAct(shift.abs - 2, 0).asBools).reduceTree(_ || _) else true.B
+        val carry = (nsign && fDec) || (sign && fDec && rest)
+        shifted + carry.asUInt
+      } else {
+        0.U
+      }
   }
 }
 
@@ -63,8 +62,8 @@ abstract class NeuronCompute {
   def mul(i: I, w: W): M
   def toAccum(m: M): A
   def addAccum(a1: A, a2: A): A
-  // TODO:
-  // It would be very nice to have a bunch of quantization schemes
+
+  // Takes in a single accumulated value for a single value in output matrix and outputs a requantized version
   def requantize(a: A): O
 
   // Helper to convert Scala Int to weight type (handles signed vs unsigned)
@@ -93,7 +92,11 @@ class BasicNeuronCompute extends NeuronCompute {
   def mul(i: I, w: W): M = (i * w).asUInt
   def toAccum(m: M): A = m.asTypeOf(genA)
   def addAccum(a1: A, a2: A): A = a1 + a2
-  def requantize(a: A): O = a.asTypeOf(genO)
+  // def requantize(a: A): O = a.asTypeOf(genO)
+  def requantize(a: A): O = {
+    val rounded = QuantizationUtils.shiftRoundUIntStatic(a, -2)
+    rounded.asTypeOf(genO)
+  }
   def weightScalaToChisel(value: Int): W = value.U.asTypeOf(genW)
 }
 

@@ -4,6 +4,7 @@ import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
 import empty.hw.Pipeline
+import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.util.Random
@@ -26,7 +27,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(3)
     )
 
-    val expected = 35;
+    //val expected = 35;
     val expectedCycles = 5;
 
     // area cost in terms of muls is the same for these two
@@ -34,6 +35,8 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
 
     val layers = Array(layer1, layer2)
+    val sim = new PipelineSim(layers)
+    val expected = sim.compute(input)
 
     test(new Pipeline(layers)).withAnnotations(Seq(TreadleBackendAnnotation)) { dut =>
       for (i <- 0 until 1) {
@@ -56,7 +59,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       //println(s"Computation took $cycles cycles")
 
       //assert(cycles == expectedCycles, s"Expected $expectedCycles cycles but got $cycles")
-      dut.io.outputOut.bits(0)(0).expect(expected)
+      dut.io.outputOut.bits(0)(0).expect(expected(0)(0))
     }
   }
 
@@ -79,13 +82,9 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val input1 = Array.fill(1, 4)(rand.nextInt(2))
     val input2 = Array.fill(1, 4)(rand.nextInt(2))
 
-    // Compute expected outputs by chaining matmuls through all 4 layers
-    var expected1 = input1
-    var expected2 = input2
-    for (layer <- layers) {
-      expected1 = matmul(expected1, layer.weights)
-      expected2 = matmul(expected2, layer.weights)
-    }
+    val pipelineSim = new PipelineSim(layers)
+    val expected1 = pipelineSim.compute(input1)
+    val expected2 = pipelineSim.compute(input2)
 
     test(new Pipeline(layers)) { dut =>
       dut.io.outputOut.ready.poke(false.B)
