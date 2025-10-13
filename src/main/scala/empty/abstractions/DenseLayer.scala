@@ -2,6 +2,7 @@ package empty.abstractions
 
 import chisel3._
 
+// TODO: functions that return expectedLatency, expectedAreaCost, ...
 /*
  * input matrix: m*n
  * weight matrix: n*k
