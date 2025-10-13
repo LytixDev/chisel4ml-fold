@@ -2,6 +2,7 @@ package empty
 
 import chisel3._
 import chiseltest._
+import empty.hw.DenseDataflowFold
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {

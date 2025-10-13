@@ -1,7 +1,8 @@
-package empty
+package empty.hw
 
 import chisel3._
 import chisel3.util.Decoupled
+import empty.DenseLayer
 
 class Pipeline(layers: Array[DenseLayer]) extends Module {
   require(layers.nonEmpty, "Pipeline must have at least one layer")

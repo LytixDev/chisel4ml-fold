@@ -1,7 +1,8 @@
-package empty
+package empty.hw
 
 import chisel3._
-import chisel3.util.{log2Ceil, Decoupled, Queue}
+import chisel3.util.{Decoupled, Queue, log2Ceil}
+import empty.DenseLayer
 
 /*
  * Dense layer with folding.
@@ -93,9 +94,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
-  // Convert accumulator to output using NeuronCompute operation (handles quantization/activation)
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => nc.quantize(acc)))
+    VecInit(row.map(acc => nc.requantize(acc)))
   ))
 
   // External output comes from the output FIFO

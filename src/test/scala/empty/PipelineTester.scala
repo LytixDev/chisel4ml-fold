@@ -3,7 +3,9 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
+import empty.hw.Pipeline
 import org.scalatest.flatspec.AnyFlatSpec
+
 import scala.util.Random
 
 class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
