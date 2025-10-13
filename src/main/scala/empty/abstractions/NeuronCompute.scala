@@ -16,8 +16,8 @@ import chisel3._
 //       has to be an input
 
 
-// Chisel4ml's ShiftRoundable.scala
-object QuantizationUtils {
+// Implementation copied from Chisel4ml's ShiftRoundable.scala
+object QuantizationVariants {
   // shift is a negative number
   // pAct is the value to be requantized
   def shiftRoundUIntStatic(pAct: UInt, shift: Int): UInt = shift.compare(0) match {
@@ -93,7 +93,7 @@ class BasicNeuronCompute extends NeuronCompute {
   def addAccum(a1: A, a2: A): A = a1 + a2
   // def requantize(a: A): O = a.asTypeOf(genO)
   def requantize(a: A): O = {
-    val rounded = QuantizationUtils.shiftRoundUIntStatic(a, -2)
+    val rounded = QuantizationVariants.shiftRoundUIntStatic(a, -2)
     rounded.asTypeOf(genO)
   }
   def weightScalaToChisel(value: Int): W = value.U.asTypeOf(genW)
