@@ -78,6 +78,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
         val product = nc.mul(inputVal, weights(idx)(j))
         val productAccum = nc.toAccum(product)
         // NOTE: This creates a huge adder tree
+        // TODO: look into "partial product tree for multiplier"
         partialSum = nc.addAccum(partialSum, productAccum)
       }
 
