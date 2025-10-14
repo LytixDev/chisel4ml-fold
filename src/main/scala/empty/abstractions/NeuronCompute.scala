@@ -1,12 +1,15 @@
-package empty
+package empty.abstractions
 
 import chisel3._
+import empty.hw.QuantizationVariants
+
+// NOTE to self: Sealed trait ensures all variants are defined in this file, enabling exhaustive pattern matching.
+// Also: in Chisel we need a concrete hardware instance with width information. That's why the output type also
+//       has to be an input
 
 
 // Stripped down NeuronCompute abstraction from Chisel4ml
 // This abstraction allows the same layer logic to work with different numeric types.
-// - signed and unsigned ints, fixed point?, floating point?
-// - custom quantization schemes
 abstract class NeuronCompute {
   type I <: Bits // Input
   type W <: Bits // Weight
@@ -26,7 +29,9 @@ abstract class NeuronCompute {
   def mul(i: I, w: W): M
   def toAccum(m: M): A
   def addAccum(a1: A, a2: A): A
-  def quantize(a: A): O
+
+  // Takes in a single accumulated value for a single value in output matrix and outputs a requantized version
+  def requantize(a: A): O
 
   // Helper to convert Scala Int to weight type (handles signed vs unsigned)
   def weightScalaToChisel(value: Int): W
@@ -54,19 +59,10 @@ class BasicNeuronCompute extends NeuronCompute {
   def mul(i: I, w: W): M = (i * w).asUInt
   def toAccum(m: M): A = m.asTypeOf(genA)
   def addAccum(a1: A, a2: A): A = a1 + a2
-  // TODO: Actual quantization
-  def quantize(a: A): O = a.asTypeOf(genO)
+  // def requantize(a: A): O = a.asTypeOf(genO)
+  def requantize(a: A): O = {
+    val rounded = QuantizationVariants.uniformSymmetric(a, -2)
+    rounded.asTypeOf(genO)
+  }
   def weightScalaToChisel(value: Int): W = value.U.asTypeOf(genW)
-}
-
-/*
- * input matrix: m*n
- * weight matrix: n*k
- * PEsPerOutput: number of multipliers per output (1 = fully folded, n = fully parallel)
- */
-case class DenseLayer(m: Int, n: Int, k: Int, weights: Array[Array[Int]], PEsPerOutput: Int, neuronCompute: NeuronCompute) {
-  require(weights.length == n, s"weights must have $n rows, got ${weights.length}")
-  require(weights.forall(_.length == k), s"all weight rows must have $k columns")
-  require(1 <= PEsPerOutput && PEsPerOutput <= n, s"PEsPerOutput must be between 1 (fully folded) and $n (fully parallel)")
-  require(n % PEsPerOutput == 0, s"n=$n must be divisible by PEsPerOutput=$PEsPerOutput")
 }

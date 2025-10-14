@@ -1,7 +1,8 @@
-package empty
+package empty.hw
 
 import chisel3._
-import chisel3.util.{log2Ceil, Decoupled, Queue}
+import chisel3.util.{Decoupled, Queue, log2Ceil}
+import empty.abstractions.DenseLayer
 
 /*
  * Dense layer with folding.
@@ -22,7 +23,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   require(layer.n % layer.PEsPerOutput == 0)
   val latency = layer.n / layer.PEsPerOutput
 
-  // TODO: Consider storing this in BRAM?
+  // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
   val weights = VecInit(layer.weights.toIndexedSeq.map { row =>
     VecInit(row.toIndexedSeq.map { w =>
       nc.weightScalaToChisel(w)
@@ -33,7 +34,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
   val computing = RegInit(false.B)
   // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
-  val inputReg = Reg(Vec(layer.m, Vec(layer.n, nc.genI))) // TODO: Is this stored in BRAM?
+  //       If we stick with the Reg solution we need to figure out what kind of memory this is synthesized into.
+  val inputReg = Reg(Vec(layer.m, Vec(layer.n, nc.genI)))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
@@ -45,13 +47,13 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val outputFifo = Module(new Queue(Vec(layer.m, Vec(layer.k, nc.genO)), outFifoDepth, flow=true))
 
   // Can accept input when not computing
-  // output FIFOs handles buffering
   io.inputIn.ready := !computing
 
-  // Start computing immeditely as the input gets data
+  // Start computing immeditely as the input fires
   val isComputing = io.inputIn.fire || computing
+  val firstComputation = io.inputIn.fire && !computing
 
-  when(io.inputIn.fire && !computing) {
+  when(firstComputation) {
     inputReg := io.inputIn.bits
     computing := true.B
     cycleCounter := 1.U
@@ -66,19 +68,23 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   for (i <- 0 until layer.m) {
     for (j <- 0 until layer.k) {
       // Compute partial sum using layer.PEsPerOutput multipliers
-      // TODO: Is this hardcoded to be unsigned?
+      // NOTE: Despite being (0.U) it works for signed partial sums as well since the bit representation for
+      //       0 in unsigned and signed is the same.
       var partialSum = 0.U.asTypeOf(nc.genA)
       for (pe <- 0 until layer.PEsPerOutput) {
         val idx = cycleCounter * layer.PEsPerOutput.U + pe.U
         // For the first cycle we use the input data, otherwise we use the regs
         val inputVal = Mux(io.inputIn.fire, io.inputIn.bits(i)(idx), inputReg(i)(idx))
-        // Multiply input * weight using NeuronCompute operation
         val product = nc.mul(inputVal, weights(idx)(j))
         val productAccum = nc.toAccum(product)
+        // NOTE: This creates a huge adder tree
+        // TODO: look into "partial product tree for multiplier"
         partialSum = nc.addAccum(partialSum, productAccum)
       }
 
       // Accumulate
+      // NOTE: This first when() is not needed for correctness, but I suppose it reduces power consumption since
+      //       it will make the accumulation operation idle when its not computing? Idk.
       when(isComputing) {
         when(io.inputIn.fire && !computing) {
           // First cycle
@@ -93,9 +99,9 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
-  // Convert accumulator to output using NeuronCompute operation (handles quantization/activation)
+  // TODO: Its not necessary to calculate the requantization in each cycle
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => nc.quantize(acc)))
+    VecInit(row.map(acc => nc.requantize(acc)))
   ))
 
   // External output comes from the output FIFO

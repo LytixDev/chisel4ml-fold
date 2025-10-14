@@ -1,0 +1,12 @@
+--- Design ---
+
+chisel4ml-fold extends chisel4ml with the ability to time-multiplex (aka fold) layers. chisel4ml-fold is not a fork of chisel4ml. Instead, chisel4ml-fold is a from scratch rewrite that brings in abstractions deemed useful.
+
+The repository is **currently** structured like so:
+- abstractions/
+- hw/
+- sim/
+
+The abstraction directory defines structures and interfaces that are implemented twice. Once in the hw/ directory and once in the sim/ directory. The hw/ implements the abstractions as chisel modules, while the sim/ directory essentially emulates the chisel implementations. 
+
+There will be a Python frontend, similar to chisel4ml, that transform qonnx graphs into an IR (LBIR from the original chisel4ml or something else). This IR is then mapped into the parameterizable hw/ modules which form a synthesizable circuit.

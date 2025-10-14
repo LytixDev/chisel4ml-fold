@@ -1,0 +1,17 @@
+Figure out what is taking time during synthesise. Some ideas:
+
+- Accumulators
+- Weight storage?
+- requantization logic?
+- input muxes from the PEs
+- weight indexing muxes from the PEs
+- ITS THE HUGE ADDER TREE FROMM THE MULS INTO THE ACCUMULATORS!
+
+
+Also chisel generate one input port for eachh element of the input matrix in the first layer.
+- We probably need some "glue" code to talk to the host or whatever
+
+
+Weight-stationary SA!
+
+
