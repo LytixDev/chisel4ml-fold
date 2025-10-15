@@ -15,6 +15,10 @@ import empty.abstractions.DenseLayer
 class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module {
   val nc = layer.neuronCompute
   val io = IO(new Bundle{
+    // TODO: In a folded design, we don't operate on every input in the first cycle.
+    //       In fact, we can be much more smart about this. Instead of sending the entire input at the same time we
+    //       could instead send it in smaller chunks ensuring that the first chunk contains enough inputs so we can
+    //       fully saturate our PEs. This would decrease the amount of wires we need by quite a lot.
     val inputIn = Flipped(Decoupled(Vec(layer.m, Vec(layer.n, nc.genI))))
     val outputOut = Decoupled(Vec(layer.m, Vec(layer.k, nc.genO)))
   })
