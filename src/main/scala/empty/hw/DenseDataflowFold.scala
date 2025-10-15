@@ -37,9 +37,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Computation state
   val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
   val computing = RegInit(false.B)
-  // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
-  //       If we stick with the Reg solution we need to figure out what kind of memory this is synthesized into.
-  val inputReg = Reg(Vec(layer.m, Vec(layer.n, nc.genI)))
+
+  // Optimized storage: Instead of one huge register array requiring dynamic muxing,
+  // organize inputs into groups that match our PE access pattern.
+  // We access PEsPerOutput inputs at a time sequentially, so store them in latency groups.
+  // This reduces the mux from n-to-1 down to latency-to-PEsPerOutput.
+  val inputBuffer = Reg(Vec(layer.m, Vec(latency, Vec(layer.PEsPerOutput, nc.genI))))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
@@ -57,8 +60,19 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val isComputing = io.inputIn.fire || computing
   val firstComputation = io.inputIn.fire && !computing
 
+  // Load input buffer with restructured organization
   when(firstComputation) {
-    inputReg := io.inputIn.bits
+    // Reorganize inputs: group them by which cycle they'll be used
+    // Instead of [input0, input1, ..., input783], store as:
+    // [cycle0: [input0, input1], cycle1: [input2, input3], ...]
+    for (i <- 0 until layer.m) {
+      for (cycle <- 0 until latency) {
+        for (pe <- 0 until layer.PEsPerOutput) {
+          val flatIdx = cycle * layer.PEsPerOutput + pe
+          inputBuffer(i)(cycle)(pe) := io.inputIn.bits(i)(flatIdx)
+        }
+      }
+    }
     computing := true.B
     cycleCounter := 1.U
   }.elsewhen(computing && cycleCounter < (latency - 1).U) {
@@ -76,15 +90,23 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
       //       0 in unsigned and signed is the same.
       var partialSum = 0.U.asTypeOf(nc.genA)
       for (pe <- 0 until layer.PEsPerOutput) {
-        val idx = cycleCounter * layer.PEsPerOutput.U + pe.U
-        // For the first cycle we use the input data, otherwise we use the regs
-        val inputVal = Mux(io.inputIn.fire, io.inputIn.bits(i)(idx), inputReg(i)(idx))
-        val product = nc.mul(inputVal, weights(idx)(j))
+        // KEY OPTIMIZATION: Access inputs using static indexing into the restructured buffer.
+        // On first cycle, read from input directly; otherwise from the pre-organized buffer.
+        // The buffer is indexed by cycleCounter (not a computed index), eliminating the large mux!
+        val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
+        val inputVal = Mux(firstComputation,
+          io.inputIn.bits(i)(pe),
+          inputBuffer(i)(currentCycle)(pe))
+
+        // Weight indexing - this still needs dynamic computation, but weights are constants
+        // so Vivado will likely infer BRAM with the computed address
+        val weightIdx = currentCycle * layer.PEsPerOutput.U + pe.U
+        val product = nc.mul(inputVal, weights(weightIdx)(j))
         val productAccum = nc.toAccum(product)
         // NOTE: This creates a huge adder tree
         // TODO: look into "partial product tree for multiplier"
         //       wallace tree?
-        // We could also use this current approach when PEsPerOutput is small, but do some pipelining when it it larger
+        // We could also use this current approach when PEsPerOutput is small, but do some pipelining when it is larger
         partialSum = nc.addAccum(partialSum, productAccum)
       }
 
@@ -92,7 +114,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
       // NOTE: This first when() is not needed for correctness, but I suppose it reduces power consumption since
       //       it will make the accumulation operation idle when its not computing? Idk.
       when(isComputing) {
-        when(io.inputIn.fire && !computing) {
+        when(firstComputation) {
           // First cycle
           accumulators(i)(j) := partialSum
         }.otherwise {
