@@ -21,8 +21,8 @@ object Main extends App {
 
   val nc = new BasicNeuronCompute()
 
-  val layer1 = DenseLayer(m = l1m, n = l1n, k = l1k, weights = weights1, PEsPerOutput = 2, neuronCompute = nc)
-  val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 1, neuronCompute = nc)
+  val layer1 = DenseLayer(m = l1m, n = l1n, k = l1k, weights = weights1, PEsPerOutput = 8, neuronCompute = nc)
+  val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 2, neuronCompute = nc)
 
   val layers = Array(layer1, layer2)
 

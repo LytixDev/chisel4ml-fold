@@ -38,10 +38,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
   val computing = RegInit(false.B)
 
-  // Optimized storage: Instead of one huge register array requiring dynamic muxing,
-  // organize inputs into groups that match our PE access pattern.
-  // We access PEsPerOutput inputs at a time sequentially, so store them in latency groups.
-  // This reduces the mux from n-to-1 down to latency-to-PEsPerOutput.
+  // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
+  //       If we stick with the Reg solution we need to figure out what kind of memory this is synthesized into.
+
+  // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs into groups that
+  // match the access pattern of the "PEs". We access PEsPerOutput inputs at a time sequentially. This matches that
+  // access pattern.
   val inputBuffer = Reg(Vec(layer.m, Vec(latency, Vec(layer.PEsPerOutput, nc.genI))))
 
   // One accumulator per output element (m*k total)
@@ -60,11 +62,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val isComputing = io.inputIn.fire || computing
   val firstComputation = io.inputIn.fire && !computing
 
-  // Load input buffer with restructured organization
+  // Load input buffer and restructre it to fit the organization (essentially grouped by when they are accessed)
   when(firstComputation) {
-    // Reorganize inputs: group them by which cycle they'll be used
-    // Instead of [input0, input1, ..., input783], store as:
-    // [cycle0: [input0, input1], cycle1: [input2, input3], ...]
     for (i <- 0 until layer.m) {
       for (cycle <- 0 until latency) {
         for (pe <- 0 until layer.PEsPerOutput) {
@@ -82,7 +81,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     cycleCounter := 0.U
   }
 
-  // Compute and accumulate
+  // Multiply and accumulate
   for (i <- 0 until layer.m) {
     for (j <- 0 until layer.k) {
       // Compute partial sum using layer.PEsPerOutput multipliers
@@ -90,16 +89,15 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
       //       0 in unsigned and signed is the same.
       var partialSum = 0.U.asTypeOf(nc.genA)
       for (pe <- 0 until layer.PEsPerOutput) {
-        // KEY OPTIMIZATION: Access inputs using static indexing into the restructured buffer.
-        // On first cycle, read from input directly; otherwise from the pre-organized buffer.
-        // The buffer is indexed by cycleCounter (not a computed index), eliminating the large mux!
+        // OPTIMIZATION: Access inputs using static indexing into the restructured buffer.
+        // On the first cycle, read from input directly, otherwise from the pre-organized buffer
         val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
         val inputVal = Mux(firstComputation,
           io.inputIn.bits(i)(pe),
           inputBuffer(i)(currentCycle)(pe))
 
-        // Weight indexing - this still needs dynamic computation, but weights are constants
-        // so Vivado will likely infer BRAM with the computed address
+        // Weight indexing.
+        // TODO: These are static so perhaps we can do something smart here. BRAM.
         val weightIdx = currentCycle * layer.PEsPerOutput.U + pe.U
         val product = nc.mul(inputVal, weights(weightIdx)(j))
         val productAccum = nc.toAccum(product)
