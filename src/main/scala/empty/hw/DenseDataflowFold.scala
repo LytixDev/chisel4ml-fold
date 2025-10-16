@@ -41,10 +41,10 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
   //       If we stick with the Reg solution we need to figure out what kind of memory this is synthesized into.
 
-  // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs into groups that
-  // match the access pattern of the "PEs". We access PEsPerOutput inputs at a time sequentially. This matches that
-  // access pattern.
-  val inputBuffer = Reg(Vec(layer.m, Vec(latency, Vec(layer.PEsPerOutput, nc.genI))))
+  // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs to match PE access.
+  // PE-first organization: Each PE gets its own small time-indexed buffer.
+  // NOTE: It is also possible to do latency-first initialization.
+  val inputBuffer = Reg(Vec(layer.m, Vec(layer.PEsPerOutput, Vec(latency, nc.genI))))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
@@ -62,13 +62,13 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val isComputing = io.inputIn.fire || computing
   val firstComputation = io.inputIn.fire && !computing
 
-  // Load input buffer and restructre it to fit the organization (essentially grouped by when they are accessed)
+  // Load input buffer in PE-first organization: each PE gets its own time-indexed sequence
   when(firstComputation) {
     for (i <- 0 until layer.m) {
-      for (cycle <- 0 until latency) {
-        for (pe <- 0 until layer.PEsPerOutput) {
+      for (pe <- 0 until layer.PEsPerOutput) {
+        for (cycle <- 0 until latency) {
           val flatIdx = cycle * layer.PEsPerOutput + pe
-          inputBuffer(i)(cycle)(pe) := io.inputIn.bits(i)(flatIdx)
+          inputBuffer(i)(pe)(cycle) := io.inputIn.bits(i)(flatIdx)
         }
       }
     }
@@ -89,12 +89,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
       //       0 in unsigned and signed is the same.
       var partialSum = 0.U.asTypeOf(nc.genA)
       for (pe <- 0 until layer.PEsPerOutput) {
-        // OPTIMIZATION: Access inputs using static indexing into the restructured buffer.
-        // On the first cycle, read from input directly, otherwise from the pre-organized buffer
+        // PE-first indexing.
+        // On the first cycle, read from input directly, otherwise from the PE's time-indexed buffer
         val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
         val inputVal = Mux(firstComputation,
           io.inputIn.bits(i)(pe),
-          inputBuffer(i)(currentCycle)(pe))
+          inputBuffer(i)(pe)(currentCycle))
 
         // Weight indexing.
         // TODO: These are static so perhaps we can do something smart here. BRAM.
