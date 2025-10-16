@@ -28,11 +28,18 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val latency = layer.n / layer.PEsPerOutput
 
   // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
-  val weights = VecInit(layer.weights.toIndexedSeq.map { row =>
-    VecInit(row.toIndexedSeq.map { w =>
-      nc.weightScalaToChisel(w)
-    })
-  })
+  // Organizes the weights into PEs first, then latency/cycle, then the out
+  // weights(pe)(cycle)(output_j)
+  val weights = VecInit(
+    (0 until layer.PEsPerOutput).map { pe =>
+      VecInit((0 until latency).map { cycle =>
+        VecInit((0 until layer.k).map { j =>
+          val flatIdx = cycle * layer.PEsPerOutput + pe
+          nc.weightScalaToChisel(layer.weights(flatIdx)(j))
+        })
+      })
+    }
+  )
 
   // Computation state
   val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
@@ -62,7 +69,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val isComputing = io.inputIn.fire || computing
   val firstComputation = io.inputIn.fire && !computing
 
-  // Load input buffer in PE-first organization: each PE gets its own time-indexed sequence
+  // Load input buffer in PE-first organization
   when(firstComputation) {
     for (i <- 0 until layer.m) {
       for (pe <- 0 until layer.PEsPerOutput) {
@@ -96,12 +103,10 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
           io.inputIn.bits(i)(pe),
           inputBuffer(i)(pe)(currentCycle))
 
-        // Weight indexing.
-        // TODO: These are static so perhaps we can do something smart here. BRAM.
-        val weightIdx = currentCycle * layer.PEsPerOutput.U + pe.U
-        val product = nc.mul(inputVal, weights(weightIdx)(j))
+        // PE-first weight access: PE dimension is compile-time constant, only cycle is dynamic.
+        // This eliminates the large n-to-1 mux, replacing it with a small latency-to-1 mux per PE.
+        val product = nc.mul(inputVal, weights(pe)(currentCycle)(j))
         val productAccum = nc.toAccum(product)
-        // NOTE: This creates a huge adder tree
         // TODO: look into "partial product tree for multiplier"
         //       wallace tree?
         // We could also use this current approach when PEsPerOutput is small, but do some pipelining when it is larger
