@@ -2,8 +2,16 @@ package empty.sim
 
 import empty.abstractions.DenseLayer
 
+// Scala (and the JVM) does not support specific fixed-width integer math
+// This makes it a bit more tricky to emulate
+// TODO: We need better helpers for quantization here
+
+
+// NOTE: We assume that all weights in the layer an be represented with the bit width of the layer and need no
+//       further processing.
+
 class DenseDataflowFoldSim(layer: DenseLayer) {
-  val nc = layer.neuronCompute
+  private val scheme = layer.quantizationScheme
 
   def compute(inputs: Array[Array[Int]]): Array[Array[Int]] = {
     require(inputs.length == layer.m, s"Input batch size must be ${layer.m}, got ${inputs.length}")
@@ -19,13 +27,13 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           val input = inputs(i)(n)
           val weight = layer.weights(n)(j)
 
-          // Emulate hardware multiplication
-          val product = multiplyAsHardware(input, weight)
+          val product = mul(input, weight)
 
-          accumulator += product
+          // TODO: We need to handle overflow and signedness
+          accumulator = accumulator + product
         }
 
-        val requantized = requantizeAsHardware(accumulator)
+        val requantized = requantize(accumulator)
 
         outputs(i)(j) = requantized
       }
@@ -34,21 +42,35 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
     outputs
   }
 
-  // TODO: The data types is hardcoded rn, we should use the nc to do this properly
-  private def multiplyAsHardware(input: Int, weight: Int): Int = {
-    // 8 bit unsigned
-    val inputMasked = input & 0xFF
-    val weightMasked = weight & 0xFF
-    val product = inputMasked * weightMasked
-    // 16 bit unsigned
-    product & 0xFFFF
+  private def quantize(value: Int, bitWidth: Int, isSigned: Boolean): Int = {
+    // TODO: Investiage if this emulates overflow properly for all cases
+    val mask = (1 << bitWidth) - 1
+    val masked = value & mask
+
+    if (isSigned) {
+      // Sign extend if negative
+      val signBit = 1 << (bitWidth - 1)
+      if ((masked & signBit) != 0) {
+        // Negative: extend with ones
+        masked | ~mask
+      } else {
+        masked
+      }
+    } else {
+      masked
+    }
   }
 
-  private def requantizeAsHardware(accum: Int): Int = {
+  private def mul(input: Int, weight: Int): Int = {
+    // TODO: does this work when the inputs and weights have different signedness and bit-widths?
+    val product = input * weight
+    quantize(product, scheme.mult.bitWidth, scheme.mult.isSigned)
+  }
+
+  private def requantize(accum: Int): Int = {
     val shift = -2
     val rounded = QuantizationVariants.uniformSymmetric(accum, shift)
-    // truncate
-    rounded & 0xFF
+    quantize(rounded, scheme.output.bitWidth, scheme.output.isSigned)
   }
 
   def printMatrix(name: String, matrix: Array[Array[Int]]): Unit = {

@@ -3,7 +3,7 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
-import empty.abstractions.{BasicNeuronCompute, DenseLayer}
+import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme}
 import empty.hw.Pipeline
 import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
@@ -11,6 +11,15 @@ import org.scalatest.flatspec.AnyFlatSpec
 import scala.util.Random
 
 class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
+
+  val basicQS = QuantizationScheme(
+    input = QuantizationParams(8, false),
+    weight = QuantizationParams(8, false),
+    mult = QuantizationParams(16, false),
+    accum = QuantizationParams(32, false),
+    output = QuantizationParams(8, false),
+  )
+
   "Pipeline" should "work with layers taking different amount of cycles" in {
     // Layer 1: 1x4 @ 4x2, with 1 PEs for each output (takes 4 cycles)
     // Layer 2: 1x2 @ 2x1, with 2 PEs for each output (takes 1 cycle)
@@ -32,8 +41,8 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val expectedCycles = 5;
 
     // area cost in terms of muls is the same for these two
-    val layer1 = DenseLayer(m = 1, n = 4, k = 2, weights = weights1, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
-    val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
+    val layer1 = DenseLayer(m = 1, n = 4, k = 2, weights = weights1, PEsPerOutput = 1, quantizationScheme = basicQS)
+    val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2, quantizationScheme = basicQS)
 
     val layers = Array(layer1, layer2)
     val sim = new PipelineSim(layers)
@@ -77,7 +86,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     // We use very small numbers for the weights and inputs because the quantization stuff is not implemented yet :-)
     val layers = Array.fill(4) {
       val weights = Array.fill(4, 4)(rand.nextInt(2))
-      DenseLayer(m = 1, n = 4, k = 4, weights = weights, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
+      DenseLayer(m = 1, n = 4, k = 4, weights = weights, PEsPerOutput = 1, quantizationScheme = basicQS)
     }
 
     val input1 = Array.fill(1, 4)(rand.nextInt(2))
@@ -201,7 +210,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       val PEsPerOutput = validPEs(rand.nextInt(validPEs.length))
 
       currentN = k // Next layer's n must match this layer's k
-      DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput, neuronCompute = new BasicNeuronCompute)
+      DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput, quantizationScheme = basicQS)
     }
   }
 

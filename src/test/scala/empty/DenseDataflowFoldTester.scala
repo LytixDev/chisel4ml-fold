@@ -2,12 +2,20 @@ package empty
 
 import chisel3._
 import chiseltest._
-import empty.abstractions.{BasicNeuronCompute, DenseLayer}
+import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme}
 import empty.hw.DenseDataflowFold
 import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
+
+  val basicQS = QuantizationScheme(
+    input = QuantizationParams(8, false),
+    weight = QuantizationParams(8, false),
+    mult = QuantizationParams(16, false),
+    accum = QuantizationParams(32, false),
+    output = QuantizationParams(8, false),
+  )
 
   "DenseDataflowFold" should "compute 2x4 matrix multiplication with 2 PEs" in {
     val input = Array(
@@ -21,7 +29,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2, neuronCompute = new BasicNeuronCompute)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2, quantizationScheme = basicQS)
 
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
@@ -67,7 +75,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1, neuronCompute = new BasicNeuronCompute)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1, quantizationScheme = basicQS)
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 
@@ -111,7 +119,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4, neuronCompute = new BasicNeuronCompute)
+    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4, quantizationScheme = basicQS)
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 

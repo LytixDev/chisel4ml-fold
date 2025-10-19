@@ -13,7 +13,7 @@ import empty.abstractions.DenseLayer
  * Each layer has an internal output FIFO for buffering results enabling pipelining
  */
 class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module {
-  val nc = layer.neuronCompute
+  val nc = empty.abstractions.NeuronCompute(layer.quantizationScheme)
   val io = IO(new Bundle{
     // TODO: In a folded design, we don't operate on every input in the first cycle.
     //       In fact, we can be much more smart about this. Instead of sending the entire input at the same time we
@@ -121,11 +121,13 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
           // First cycle
           accumulators(i)(j) := partialSum
         }.otherwise {
+          // TODO: Look into tree reduction or similar
           accumulators(i)(j) := nc.addAccum(accumulators(i)(j), partialSum)
         }
       }
     }
   }
+
 
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
