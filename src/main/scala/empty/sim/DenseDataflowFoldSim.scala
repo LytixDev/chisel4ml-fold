@@ -5,6 +5,7 @@ import empty.abstractions.DenseLayer
 // Scala (and the JVM) does not support specific fixed-width integer math
 // This makes it a bit more tricky to emulate
 // TODO: We need better helpers for quantization here
+//       Fully fledged quantiaztion simulation!
 
 
 // NOTE: We assume that all weights in the layer an be represented with the bit width of the layer and need no
