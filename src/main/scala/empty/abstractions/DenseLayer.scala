@@ -26,8 +26,8 @@ case class TensorData(
 }
 
 sealed trait Activation
-//case object ReLU extends Activation
-//case object Sigmoid extends Activation
+case object ReLU extends Activation
+case object Sigmoid extends Activation
 case object Identity extends Activation
 
 case class DenseLayer(
@@ -37,7 +37,7 @@ case class DenseLayer(
                        mulDt: IntegerDataType, // Data type for multiplication results
                        accDt: IntegerDataType, // Data type for accumulators
                        //bias: Option[TensorData] = None,
-                       //activation: Option[Activation] = None,
+                       activation: Activation = Identity,
                        PEsPerOutput: Int
                      ) {
   // Convenience accessors

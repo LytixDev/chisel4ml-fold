@@ -1,6 +1,6 @@
 package empty.sim
 
-import empty.abstractions.DenseLayer
+import empty.abstractions.{DenseLayer, Identity, ReLU, Sigmoid}
 
 // Scala (and the JVM) does not support specific fixed-width integer math
 // This makes it a bit more tricky to emulate
@@ -41,7 +41,10 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           accumulator >> -shamt
         }
 
-        val quantized = quantize(shifted, layer.output.dt.bitWidth, layer.output.dt.isSigned)
+        // Apply activation function after shifting
+        val activated = applyActivation(shifted)
+
+        val quantized = quantize(activated, layer.output.dt.bitWidth, layer.output.dt.isSigned)
 
         outputs(i)(j) = quantized
       }
@@ -73,6 +76,19 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
     // TODO: does this work when the inputs and weights have different signedness and bit-widths?
     val product = input * weight
     quantize(product, layer.mulDt.bitWidth, layer.mulDt.isSigned)
+  }
+
+  private def applyActivation(value: Int): Int = {
+    layer.activation match {
+      case Identity => value
+      case ReLU => {
+        if (value < 0) 0 else value
+      }
+      case Sigmoid => {
+        // TODO
+        value
+      }
+    }
   }
 
   def printMatrix(name: String, matrix: Array[Array[Int]]): Unit = {

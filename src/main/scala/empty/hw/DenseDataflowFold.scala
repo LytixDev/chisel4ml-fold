@@ -128,14 +128,38 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     }
   }
 
+  def activationFunction(acc: nc.A): nc.A = {
+    layer.activation match {
+      // TODO: Ensure the hardware generated for this actually nothing
+      case empty.abstractions.Identity => acc
+      case empty.abstractions.ReLU => {
+        if (!layer.accDt.isSigned) {
+          acc
+        } else {
+          val zero = 0.S.asTypeOf(nc.genA)
+          // Mux(acc < zero, zero, acc)
+          // We need to explicitly cast to a SInt() because the Bits representation does not contain signedness info :-(
+          Mux(acc.asTypeOf(SInt()) < 0.S, zero, acc)
+        }
+      }
+      case empty.abstractions.Sigmoid => {
+        // TODO:
+        acc
+      }
+    }
+  }
+
 
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
 
   // TODO: Its not necessary to calculate the requantization in each cycle
+  // First apply the shift to approximate the real value
+  // Then apply the activation function
+  // Then requantize into the output domain <- TODO
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => nc.applyShift(acc)))
+    VecInit(row.map(acc => activationFunction(nc.applyShift(acc))))
   ))
 
   // External output comes from the output FIFO

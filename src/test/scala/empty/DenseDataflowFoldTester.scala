@@ -2,7 +2,7 @@ package empty
 
 import chisel3._
 import chiseltest._
-import empty.abstractions.{DenseLayer, IntegerDataType, TensorSpec, TensorData}
+import empty.abstractions.{DenseLayer, IntegerDataType, ReLU, TensorData, TensorSpec}
 import empty.hw.DenseDataflowFold
 import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec
@@ -81,6 +81,62 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      PEsPerOutput = 2
+    )
+
+    val output = runLayer(layer, input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(output(i)(j) == expected(i)(j), s"Hardware output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${output(i)(j)}")
+      }
+    }
+
+    // We take this as an oppurtonity to test the simulator as well
+    val sim = new DenseDataflowFoldSim(layer)
+    val simOutput = sim.compute(input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(simOutput(i)(j) == expected(i)(j), s"Simulator output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${simOutput(i)(j)}")
+      }
+    }
+  }
+
+  "DenseDataflowFold" should "werk for a simple manually computed test with ReLU" in {
+    // I have computed the expected results by hand
+
+    val input = Array(Array(1, 2))
+    val weights = Array(
+      Array(-1, -8),
+      Array(6, 0),
+    )
+    val expected = Array(Array(44, 0))
+
+    val in = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = true),
+      shamt = 0
+    )
+    val w = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = true),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = in,
+      weights = w,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      activation = ReLU,
       PEsPerOutput = 2
     )
 
