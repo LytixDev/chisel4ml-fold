@@ -3,7 +3,7 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
-import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme}
+import empty.abstractions.{DenseLayer, QTensor, QuantizationParams, QuantizationScheme}
 import empty.hw.Pipeline
 import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
@@ -41,8 +41,13 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val expectedCycles = 5;
 
     // area cost in terms of muls is the same for these two
-    val layer1 = DenseLayer(m = 1, n = 4, k = 2, weights = weights1, PEsPerOutput = 1, quantizationScheme = basicQS)
-    val layer2 = DenseLayer(m = 1, n = 2, k = 1, weights = weights2, PEsPerOutput = 2, quantizationScheme = basicQS)
+    val in1 = QTensor(rows = 1, cols = 4, data = Array.empty, hasData = false, shamt = 0)
+    val w1 = QTensor(rows = 4, cols = 2, data = weights1, hasData = true, shamt = 0)
+    val layer1 = DenseLayer(in = in1, weights = w1, PEsPerOutput = 1, quantizationScheme = basicQS)
+
+    val in2 = QTensor(rows = 1, cols = 2, data = Array.empty, hasData = false, shamt = 0)
+    val w2 = QTensor(rows = 2, cols = 1, data = weights2, hasData = true, shamt = 0)
+    val layer2 = DenseLayer(in = in2, weights = w2, PEsPerOutput = 2, quantizationScheme = basicQS)
 
     val layers = Array(layer1, layer2)
     val sim = new PipelineSim(layers)
@@ -51,7 +56,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     test(new Pipeline(layers)).withAnnotations(Seq(TreadleBackendAnnotation)) { dut =>
       for (i <- 0 until 1) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input(i)(j).U.asInstanceOf[dut.firstNc.I])
         }
       }
 
@@ -69,7 +74,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       //println(s"Computation took $cycles cycles")
 
       //assert(cycles == expectedCycles, s"Expected $expectedCycles cycles but got $cycles")
-      dut.io.outputOut.bits(0)(0).expect(expected(0)(0))
+      dut.io.outputOut.bits(0)(0).expect(expected(0)(0).U.asInstanceOf[dut.lastNc.O])
     }
   }
 
@@ -86,7 +91,9 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     // We use very small numbers for the weights and inputs because the quantization stuff is not implemented yet :-)
     val layers = Array.fill(4) {
       val weights = Array.fill(4, 4)(rand.nextInt(2))
-      DenseLayer(m = 1, n = 4, k = 4, weights = weights, PEsPerOutput = 1, quantizationScheme = basicQS)
+      val inTensor = QTensor(rows = 1, cols = 4, data = Array.empty, hasData = false, shamt = 0)
+      val weightTensor = QTensor(rows = 4, cols = 4, data = weights, hasData = true, shamt = 0)
+      DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 1, quantizationScheme = basicQS)
     }
 
     val input1 = Array.fill(1, 4)(rand.nextInt(2))
@@ -102,7 +109,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       // Send first input
       for (i <- 0 until 1) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input1(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input1(i)(j).U.asInstanceOf[dut.firstNc.I])
         }
       }
       dut.io.inputIn.valid.poke(true.B)
@@ -122,7 +129,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       // Send second input now that layer is ready
       for (i <- 0 until 1) {
         for (j <- 0 until 4) {
-          dut.io.inputIn.bits(i)(j).poke(input2(i)(j).U)
+          dut.io.inputIn.bits(i)(j).poke(input2(i)(j).U.asInstanceOf[dut.firstNc.I])
         }
       }
       dut.io.inputIn.valid.poke(true.B)
@@ -178,6 +185,37 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
+
+  "Pipeline" should "work for xor example" in {
+    val l1q = QuantizationScheme(
+      input = QuantizationParams(8, false),
+      weight = QuantizationParams(4, true),
+      mult = QuantizationParams(8, true),
+      accum = QuantizationParams(16, true),
+      output = QuantizationParams(4, false),
+    )
+
+    val l2q = QuantizationScheme(
+      input = QuantizationParams(4, false),
+      weight = QuantizationParams(4, true),
+      mult = QuantizationParams(8, true),
+      accum = QuantizationParams(16, true),
+      output = QuantizationParams(4, false),
+    )
+
+    val in1 = QTensor(rows = 1, cols = 2, data = Array(Array(0, 0)), hasData = true, shamt = -1)
+    val weights1 = QTensor(rows = 2, cols = 2, data = Array(Array(-5, 2), Array(-5, 2)), hasData = true, shamt = 1)
+
+    val in2 = QTensor(rows = 1, cols = 2, data = Array(Array()), hasData = false, shamt = -5)
+    val weights2 = QTensor(rows = 2, cols = 1, data = Array(Array(-7), Array(1)), hasData = true, shamt = 0)
+
+    val layer1 = DenseLayer(in1, weights1, 2, l1q)
+    val layer2 = DenseLayer(in2, weights2, 2, l2q)
+    val layers = Array(layer1, layer2)
+
+    runPipelineTest(layers, Array(in1.data))
+  }
+
   // TODO: should also quantization the output once we have quantization in the pipeline
   def matmul(input: Array[Array[Int]], weights: Array[Array[Int]]): Array[Array[Int]] = {
     val m = input.length
@@ -210,17 +248,19 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       val PEsPerOutput = validPEs(rand.nextInt(validPEs.length))
 
       currentN = k // Next layer's n must match this layer's k
-      DenseLayer(m = 1, n = n, k = k, weights = weights, PEsPerOutput = PEsPerOutput, quantizationScheme = basicQS)
+      val inTensor = QTensor(rows = 1, cols = n, data = Array.empty, hasData = false, shamt = 0)
+      val weightTensor = QTensor(rows = n, cols = k, data = weights, hasData = true, shamt = 0)
+      DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = PEsPerOutput, quantizationScheme = basicQS)
     }
   }
 
   def runPipelineTest(layers: Array[DenseLayer], inputs: Array[Array[Array[Int]]]): Unit = {
     // Calculate expected cycles for each layer
-    val layerCycles = layers.map(layer => layer.n / layer.PEsPerOutput)
+    val layerCycles = layers.map(layer => layer.in.cols / layer.PEsPerOutput)
 
     // layers.foreach { layer =>
-    //   val cycles = layer.n / layer.PEsPerOutput
-    //   println(s"Layer n=${layer.n}, PEs=${layer.PEsPerOutput}, cycles=$cycles")
+    //   val cycles = layer.in.cols / layer.PEsPerOutput
+    //   println(s"Layer n=${layer.in.cols}, PEs=${layer.PEsPerOutput}, cycles=$cycles")
     // }
 
     val firstLayerCycles = layerCycles(0)
@@ -231,7 +271,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val expectedOutputs = inputs.map { input =>
       var result = input
       for (layer <- layers) {
-        result = matmul(result, layer.weights)
+        result = matmul(result, layer.weights.data)
       }
       result
     }
@@ -243,8 +283,8 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       fork {
         for (inferenceIdx <- inputs.indices) {
           // Poke input data
-          for (j <- 0 until layers(0).n) {
-            dut.io.inputIn.bits(0)(j).poke(inputs(inferenceIdx)(0)(j).U)
+          for (j <- 0 until layers(0).in.cols) {
+            dut.io.inputIn.bits(0)(j).poke(inputs(inferenceIdx)(0)(j).U.asInstanceOf[dut.firstNc.I])
           }
           dut.io.inputIn.valid.poke(true.B)
           // println(s"Sending input $inferenceIdx")
@@ -271,7 +311,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
           println(s"Output $inferenceIdx arrived after $cycles cycles (expected $expectedCycles)")
 
           // Verify output
-          for (j <- 0 until layers.last.k) {
+          for (j <- 0 until layers.last.weights.cols) {
             val actual = dut.io.outputOut.bits(0)(j).peek().litValue.toInt
             val expected = expectedOutputs(inferenceIdx)(0)(j)
             assert(actual == expected,

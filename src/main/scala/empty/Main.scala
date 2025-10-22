@@ -1,6 +1,6 @@
 package empty
 
-import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme}
+import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme, QTensor}
 import empty.hw.Pipeline
 
 // TODO: This will be the entrypoint that spins up a server and accepts IR from the frontend.
@@ -8,7 +8,7 @@ object Main extends App {
   val useMLIRBackend = true
   println("Creating dummy pipeline for synthesis...")
 
-
+  /*
   val l1q = QuantizationScheme(
     input = QuantizationParams(8, false),
     weight = QuantizationParams(4, true),
@@ -42,12 +42,39 @@ object Main extends App {
   val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 32, quantizationScheme = l2q)
 
   val layers = Array(layer1, layer2)
+  */
+
+  val l1q = QuantizationScheme(
+    input = QuantizationParams(8, false),
+    weight = QuantizationParams(4, true),
+    mult = QuantizationParams(8, true),
+    accum = QuantizationParams(16, true),
+    output = QuantizationParams(4, false),
+  )
+
+  val l2q = QuantizationScheme(
+    input = QuantizationParams(4, false),
+    weight = QuantizationParams(4, true),
+    mult = QuantizationParams(8, true),
+    accum = QuantizationParams(16, true),
+    output = QuantizationParams(4, false),
+  )
+
+  val in1 = QTensor(rows = 1, cols = 2, data = Array(Array(0, 0)), hasData = true, shamt = -2)
+  val weights1 = QTensor(rows = 2, cols = 2, data = Array(Array(-5, 3), Array(-5, 3)), hasData = true, shamt = 1)
+
+  val in2 = QTensor(rows = 1, cols = 2, data = Array(Array()), hasData = false, shamt = -5)
+  val weights2 = QTensor(rows = 2, cols = 1, data = Array(Array(-7), Array(4)), hasData = true, shamt = 0)
+
+  val layer1 = DenseLayer(in1, weights1, 2, l1q)
+  val layer2 = DenseLayer(in2, weights2, 2, l2q)
+  val layers = Array(layer1, layer2)
 
   println(s"Pipeline configuration:")
-  println(s"  Layer 1: ${layer1.n}x${layer1.k} with ${layer1.PEsPerOutput} PEs (${layer1.n / layer1.PEsPerOutput} cycles)")
-  println(s"  Layer 2: ${layer2.n}x${layer2.k} with ${layer2.PEsPerOutput} PEs (${layer2.n / layer2.PEsPerOutput} cycles)")
-  println(s"  Total latency: ${layers.map(l => l.n / l.PEsPerOutput).sum} cycles")
-  println(s"  Total multipliers: ${layers.map(l => l.m * l.k * l.PEsPerOutput).sum}")
+  println(s"  Layer 1: ${layer1.weights.rows}x${layer1.weights.cols} with ${layer1.PEsPerOutput} PEs (${layer1.in.cols / layer1.PEsPerOutput} cycles)")
+  println(s"  Layer 2: ${layer1.weights.rows}x${layer1.weights.cols} with ${layer1.PEsPerOutput} PEs (${layer1.in.cols / layer1.PEsPerOutput} cycles)")
+  println(s"  Total latency: ${layers.map(l => l.in.cols / l.PEsPerOutput).sum} cycles")
+  println(s"  Total multipliers: ${layers.map(l => l.in.rows * l.weights.cols * l.PEsPerOutput).sum}")
 
   // Generate Verilog
   println(s"\nGenerating SystemVerilog using ${if (useMLIRBackend) "MLIR/CIRCT" else "classic FIRRTL"} backend...")

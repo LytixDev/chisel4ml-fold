@@ -2,15 +2,35 @@ package empty.abstractions
 
 import chisel3._
 
+// qtensor
+
+case class QTensor(rows: Int, // m
+                   cols: Int, // n
+                   data: Array[Array[Int]],
+                   hasData: Boolean,
+                   // Uniform quantization parameters
+                   shamt: Int, // NOTE: shift amount for power of two scaling
+                   //zeroPoint: Int, // NOTE: not supported yet
+                   )
+
 // TODO: functions that return expectedLatency, expectedAreaCost, ...
 /*
  * input matrix: m*n
  * weight matrix: n*k
  * PEsPerOutput: number of multipliers per output (1 = fully folded, n = fully parallel)
  */
-case class DenseLayer(m: Int, n: Int, k: Int, weights: Array[Array[Int]], PEsPerOutput: Int, quantizationScheme: QuantizationScheme) {
-  require(weights.length == n, s"weights must have $n rows, got ${weights.length}")
-  require(weights.forall(_.length == k), s"all weight rows must have $k columns")
-  require(1 <= PEsPerOutput && PEsPerOutput <= n, s"PEsPerOutput must be between 1 (fully folded) and $n (fully parallel)")
-  require(n % PEsPerOutput == 0, s"n=$n must be divisible by PEsPerOutput=$PEsPerOutput")
+//case class DenseLayer(m: Int, n: Int, k: Int, weights: Array[Array[Int]], PEsPerOutput: Int, quantizationScheme: QuantizationScheme) {
+
+// TODO:
+//  - want to get rid of the quantizationScheme and rather bake this into the QTensors
+//  - activation function
+//  - bias/thresholding
+//  - we need the final shamt amount, probably we need to take in an out tensor as well
+//  Come to think of it, I think I prefer to just write all of the params out?
+case class DenseLayer(in: QTensor, weights: QTensor, PEsPerOutput: Int, quantizationScheme: QuantizationScheme) {
+  // TODO:
+  // require(weights.length == n, s"weights must have $n rows, got ${weights.length}")
+  // require(weights.forall(_.length == k), s"all weight rows must have $k columns")
+  // require(1 <= PEsPerOutput && PEsPerOutput <= n, s"PEsPerOutput must be between 1 (fully folded) and $n (fully parallel)")
+  // require(n % PEsPerOutput == 0, s"n=$n must be divisible by PEsPerOutput=$PEsPerOutput")
 }

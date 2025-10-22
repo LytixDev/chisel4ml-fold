@@ -2,7 +2,7 @@ package empty
 
 import chisel3._
 import chiseltest._
-import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme}
+import empty.abstractions.{DenseLayer, QTensor, QuantizationParams, QuantizationScheme}
 import empty.hw.DenseDataflowFold
 import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec
@@ -29,7 +29,9 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 2, quantizationScheme = basicQS)
+    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
+    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
+    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 2, quantizationScheme = basicQS)
 
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
@@ -75,7 +77,9 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 1, quantizationScheme = basicQS)
+    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
+    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
+    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 1, quantizationScheme = basicQS)
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 
@@ -119,7 +123,9 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val layer = DenseLayer(m = 2, n = 4, k = 2, weights = weights, PEsPerOutput = 4, quantizationScheme = basicQS)
+    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
+    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
+    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 4, quantizationScheme = basicQS)
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 

@@ -46,7 +46,7 @@ abstract class NeuronCompute {
   def addAccum(a1: A, a2: A): A
 
   // Takes in a single accumulated value for a single value in output matrix and outputs a requantized version
-  def requantize(a: A): O
+  def requantize(a: O): O
 
   // Helper to convert Scala Int to weight type (handles signed vs unsigned)
   def weightScalaToChisel(value: Int): W
@@ -100,7 +100,7 @@ object NeuronCompute {
       }
     }
 
-    def requantize(a: A): O = {
+    def requantize(a: O): O = {
       // TODO: Implement proper quantization based on scheme
       val rounded = QuantizationVariants.uniformSymmetric(a.asUInt, -2)
       rounded.asTypeOf(genO)

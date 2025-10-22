@@ -15,18 +15,18 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
   private val scheme = layer.quantizationScheme
 
   def compute(inputs: Array[Array[Int]]): Array[Array[Int]] = {
-    require(inputs.length == layer.m, s"Input batch size must be ${layer.m}, got ${inputs.length}")
-    require(inputs.forall(_.length == layer.n), s"Input feature size must be ${layer.n}")
+    require(inputs.length == layer.in.rows, s"Input batch size must be ${layer.in.rows}, got ${inputs.length}")
+    require(inputs.forall(_.length == layer.in.cols), s"Input feature size must be ${layer.in.cols}")
 
-    val outputs = Array.ofDim[Int](layer.m, layer.k)
+    val outputs = Array.ofDim[Int](layer.in.rows, layer.weights.cols)
 
-    for (i <- 0 until layer.m) {
-      for (j <- 0 until layer.k) {
+    for (i <- 0 until layer.in.rows) {
+      for (j <- 0 until layer.weights.cols) {
         var accumulator = 0
 
-        for (n <- 0 until layer.n) {
+        for (n <- 0 until layer.in.cols) {
           val input = inputs(i)(n)
-          val weight = layer.weights(n)(j)
+          val weight = layer.weights.data(n)(j)
 
           val product = mul(input, weight)
 
@@ -34,9 +34,18 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           accumulator = accumulator + product
         }
 
-        val requantized = requantize(accumulator)
+        val shamt = layer.in.shamt + layer.weights.shamt
+        val shifted = if (shamt == 0) {
+          accumulator
+        } else if (shamt > 0) {
+          accumulator << shamt
+        } else {
+          accumulator >> -shamt
+        }
 
-        outputs(i)(j) = requantized
+        val quantized = quantize(shifted, scheme.output.bitWidth, scheme.output.isSigned)
+
+        outputs(i)(j) = quantized
       }
     }
 
