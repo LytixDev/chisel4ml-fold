@@ -12,19 +12,17 @@ import empty.abstractions.DenseLayer
 //       further processing.
 
 class DenseDataflowFoldSim(layer: DenseLayer) {
-  private val scheme = layer.quantizationScheme
-
   def compute(inputs: Array[Array[Int]]): Array[Array[Int]] = {
-    require(inputs.length == layer.in.rows, s"Input batch size must be ${layer.in.rows}, got ${inputs.length}")
-    require(inputs.forall(_.length == layer.in.cols), s"Input feature size must be ${layer.in.cols}")
+    require(inputs.length == layer.input.rows, s"Input batch size must be ${layer.input.rows}, got ${inputs.length}")
+    require(inputs.forall(_.length == layer.input.cols), s"Input feature size must be ${layer.input.cols}")
 
-    val outputs = Array.ofDim[Int](layer.in.rows, layer.weights.cols)
+    val outputs = Array.ofDim[Int](layer.input.rows, layer.weights.cols)
 
-    for (i <- 0 until layer.in.rows) {
+    for (i <- 0 until layer.input.rows) {
       for (j <- 0 until layer.weights.cols) {
         var accumulator = 0
 
-        for (n <- 0 until layer.in.cols) {
+        for (n <- 0 until layer.input.cols) {
           val input = inputs(i)(n)
           val weight = layer.weights.data(n)(j)
 
@@ -34,7 +32,7 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           accumulator = accumulator + product
         }
 
-        val shamt = layer.in.shamt + layer.weights.shamt
+        val shamt = layer.input.shamt + layer.weights.spec.shamt
         val shifted = if (shamt == 0) {
           accumulator
         } else if (shamt > 0) {
@@ -43,7 +41,7 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           accumulator >> -shamt
         }
 
-        val quantized = quantize(shifted, scheme.output.bitWidth, scheme.output.isSigned)
+        val quantized = quantize(shifted, layer.output.dt.bitWidth, layer.output.dt.isSigned)
 
         outputs(i)(j) = quantized
       }
@@ -74,13 +72,7 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
   private def mul(input: Int, weight: Int): Int = {
     // TODO: does this work when the inputs and weights have different signedness and bit-widths?
     val product = input * weight
-    quantize(product, scheme.mult.bitWidth, scheme.mult.isSigned)
-  }
-
-  private def requantize(accum: Int): Int = {
-    val shift = -2
-    val rounded = QuantizationVariants.uniformSymmetric(accum, shift)
-    quantize(rounded, scheme.output.bitWidth, scheme.output.isSigned)
+    quantize(product, layer.mulDt.bitWidth, layer.mulDt.isSigned)
   }
 
   def printMatrix(name: String, matrix: Array[Array[Int]]): Unit = {

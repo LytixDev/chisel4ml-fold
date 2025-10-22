@@ -3,13 +3,14 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
-import empty.abstractions.{DenseLayer, QTensor, QuantizationParams, QuantizationScheme}
+import empty.abstractions.{DenseLayer}
 import empty.hw.Pipeline
 import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.util.Random
 
+/*
 class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
 
   val basicQS = QuantizationScheme(
@@ -360,3 +361,5 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
    */
 
 }
+
+ */

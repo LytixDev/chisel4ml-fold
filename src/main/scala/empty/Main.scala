@@ -1,6 +1,6 @@
 package empty
 
-import empty.abstractions.{DenseLayer, QuantizationParams, QuantizationScheme, QTensor}
+import empty.abstractions.{DenseLayer, IntegerDataType, TensorSpec, TensorData}
 import empty.hw.Pipeline
 
 // TODO: This will be the entrypoint that spins up a server and accepts IR from the frontend.
@@ -8,73 +8,145 @@ object Main extends App {
   val useMLIRBackend = true
   println("Creating dummy pipeline for synthesis...")
 
-  /*
-  val l1q = QuantizationScheme(
-    input = QuantizationParams(8, false),
-    weight = QuantizationParams(4, true),
-    mult = QuantizationParams(16, true),
-    accum = QuantizationParams(32, true),
-    output = QuantizationParams(4, false),
-  )
 
-  val l2q = QuantizationScheme(
-    input = QuantizationParams(4, false),
-    weight = QuantizationParams(4, true),
-    mult = QuantizationParams(8, true),
-    accum = QuantizationParams(16, true),
-    output = QuantizationParams(4, true),
-  )
+  def MNIST_MLP(): Array[DenseLayer] = {
+    // MNIST MLP with random weights
+    // l1: in: 1x784, weights: 784 x 32, out: 1x32
+    // l2: in: 1x32, weights: 32x10, out: 1x10
 
-  val l1m = 1
-  val l1n = 784
-  val l1k = 32
+    val rand = new scala.util.Random(42)
+    val in1 = TensorSpec(
+      rows = 1, cols = 784,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val weights1 = TensorData(
+      spec = TensorSpec(
+        rows = 784, cols = 32,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 0
+      ),
+      data = Array.fill(784, 32)(rand.nextInt(8) - 4)  // Random weights in [-4, 3]
+    )
+    val out1 = TensorSpec(
+      rows = 1, cols = 32,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
 
-  val l2m = 1
-  val l2n = 32
-  val l2k = 10
+    val layer1 = DenseLayer(
+      input = in1,
+      weights = weights1,
+      output = out1,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
+      PEsPerOutput = 784  // Fully parallel (no folding)
+    )
 
-  val weights1 = Array.fill(l1n, l1k)(scala.util.Random.nextInt(16))
-  val weights2 = Array.fill(l2n, l2k)(scala.util.Random.nextInt(16))
+    val in2 = TensorSpec(
+      rows = 1, cols = 32,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val weights2 = TensorData(
+      spec = TensorSpec(
+        rows = 32, cols = 10,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 0
+      ),
+      data = Array.fill(32, 10)(rand.nextInt(8) - 4)
+    )
+    val out2 = TensorSpec(
+      rows = 1, cols = 10,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
 
-  // val nc = new BasicNeuronCompute()
+    val layer2 = DenseLayer(
+      input = in2,
+      weights = weights2,
+      output = out2,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
+      PEsPerOutput = 32  // Fully parallel (no folding)
+    )
 
-  val layer1 = DenseLayer(m = l1m, n = l1n, k = l1k, weights = weights1, PEsPerOutput = 784, quantizationScheme = l1q)
-  val layer2 = DenseLayer(m = l2m, n = l2n, k = l2k, weights = weights2, PEsPerOutput = 32, quantizationScheme = l2q)
+    Array(layer1, layer2)
+  }
 
-  val layers = Array(layer1, layer2)
-  */
+  def XORNet(): Array[DenseLayer] = {
+    val in1 = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -2
+    )
+    val weights1 = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 1
+      ),
+      data = Array(Array(-5, 3), Array(-5, 3))
+    )
+    val out1 = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -5
+    )
 
-  val l1q = QuantizationScheme(
-    input = QuantizationParams(8, false),
-    weight = QuantizationParams(4, true),
-    mult = QuantizationParams(8, true),
-    accum = QuantizationParams(16, true),
-    output = QuantizationParams(4, false),
-  )
+    val in2 = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -5
+    )
+    val weights2 = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 1,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 0
+      ),
+      data = Array(Array(-7), Array(4))
+    )
+    val out2 = TensorSpec(
+      rows = 1, cols = 1,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = 0
+    )
 
-  val l2q = QuantizationScheme(
-    input = QuantizationParams(4, false),
-    weight = QuantizationParams(4, true),
-    mult = QuantizationParams(8, true),
-    accum = QuantizationParams(16, true),
-    output = QuantizationParams(4, false),
-  )
+    val layer1 = DenseLayer(
+      input = in1,
+      weights = weights1,
+      output = out1,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
+      PEsPerOutput = 2
+    )
 
-  val in1 = QTensor(rows = 1, cols = 2, data = Array(Array(0, 0)), hasData = true, shamt = -2)
-  val weights1 = QTensor(rows = 2, cols = 2, data = Array(Array(-5, 3), Array(-5, 3)), hasData = true, shamt = 1)
+    val layer2 = DenseLayer(
+      input = in2,
+      weights = weights2,
+      output = out2,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      PEsPerOutput = 2
+    )
 
-  val in2 = QTensor(rows = 1, cols = 2, data = Array(Array()), hasData = false, shamt = -5)
-  val weights2 = QTensor(rows = 2, cols = 1, data = Array(Array(-7), Array(4)), hasData = true, shamt = 0)
+    Array(layer1, layer2)
+  }
 
-  val layer1 = DenseLayer(in1, weights1, 2, l1q)
-  val layer2 = DenseLayer(in2, weights2, 2, l2q)
-  val layers = Array(layer1, layer2)
+  def printPipelineStatistics(layers: Array[DenseLayer]): Unit = {
+    println(s"Pipeline configuration:")
+    layers.zipWithIndex.foreach { case (layer, idx) =>
+      val cycles = layer.input.cols / layer.PEsPerOutput
+      println(s"  Layer ${idx + 1}: ${layer.weights.rows}x${layer.weights.cols} with ${layer.PEsPerOutput} PEs ($cycles cycles)")
+    }
+    println(s"  Total latency: ${layers.map(l => l.input.cols / l.PEsPerOutput).sum} cycles")
+    println(s"  Total multipliers: ${layers.map(l => l.input.rows * l.weights.cols * l.PEsPerOutput).sum}")
+  }
 
-  println(s"Pipeline configuration:")
-  println(s"  Layer 1: ${layer1.weights.rows}x${layer1.weights.cols} with ${layer1.PEsPerOutput} PEs (${layer1.in.cols / layer1.PEsPerOutput} cycles)")
-  println(s"  Layer 2: ${layer1.weights.rows}x${layer1.weights.cols} with ${layer1.PEsPerOutput} PEs (${layer1.in.cols / layer1.PEsPerOutput} cycles)")
-  println(s"  Total latency: ${layers.map(l => l.in.cols / l.PEsPerOutput).sum} cycles")
-  println(s"  Total multipliers: ${layers.map(l => l.in.rows * l.weights.cols * l.PEsPerOutput).sum}")
+  //val layers = MNIST_MLP()
+  val layers = XORNet()
+  printPipelineStatistics(layers)
 
   // Generate Verilog
   println(s"\nGenerating SystemVerilog using ${if (useMLIRBackend) "MLIR/CIRCT" else "classic FIRRTL"} backend...")

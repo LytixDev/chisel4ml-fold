@@ -13,19 +13,19 @@ import empty.abstractions.DenseLayer
  * Each layer has an internal output FIFO for buffering results enabling pipelining
  */
 class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module {
-  val nc = empty.abstractions.NeuronCompute(layer.quantizationScheme)
+  val nc = empty.abstractions.NeuronCompute(layer)
   val io = IO(new Bundle{
     // TODO: In a folded design, we don't operate on every input in the first cycle.
     //       In fact, we can be much more smart about this. Instead of sending the entire input at the same time we
     //       could instead send it in smaller chunks ensuring that the first chunk contains enough inputs so we can
     //       fully saturate our PEs. This would decrease the amount of wires we need by quite a lot.
-    val inputIn = Flipped(Decoupled(Vec(layer.in.rows, Vec(layer.in.cols, nc.genI))))
-    val outputOut = Decoupled(Vec(layer.in.rows, Vec(layer.weights.cols, nc.genO)))
+    val inputIn = Flipped(Decoupled(Vec(layer.input.rows, Vec(layer.input.cols, nc.genI))))
+    val outputOut = Decoupled(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genO)))
   })
 
-  require(layer.PEsPerOutput >= 1 && layer.PEsPerOutput <= layer.in.cols)
-  require(layer.in.cols % layer.PEsPerOutput == 0)
-  val latency = layer.in.cols / layer.PEsPerOutput
+  require(layer.PEsPerOutput >= 1 && layer.PEsPerOutput <= layer.input.cols)
+  require(layer.input.cols % layer.PEsPerOutput == 0)
+  val latency = layer.input.cols / layer.PEsPerOutput
 
   // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
   // Organizes the weights into PEs first, then latency/cycle, then the out
@@ -51,16 +51,16 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs to match PE access.
   // PE-first organization: Each PE gets its own small time-indexed buffer.
   // NOTE: It is also possible to do latency-first initialization.
-  val inputBuffer = Reg(Vec(layer.in.rows, Vec(layer.PEsPerOutput, Vec(latency, nc.genI))))
+  val inputBuffer = Reg(Vec(layer.input.rows, Vec(layer.PEsPerOutput, Vec(latency, nc.genI))))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
-  val accumulators = Reg(Vec(layer.in.rows, Vec(layer.weights.cols, nc.genA)))
+  val accumulators = Reg(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genA)))
 
   // NOTE: Incurs a 1 cycle latency by default w/o the flow = true param
   // TODO: So the FIFOs give us decoupling between layers. However, if two layers are perfectly in sync, they don't
   //       necessarily need to be decoupled and perhaps we could directly wire them together?
-  val outputFifo = Module(new Queue(Vec(layer.in.rows, Vec(layer.weights.cols, nc.genO)), outFifoDepth, flow=true))
+  val outputFifo = Module(new Queue(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genO)), outFifoDepth, flow=true))
 
   // Can accept input when not computing
   io.inputIn.ready := !computing
@@ -71,7 +71,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   // Load input buffer in PE-first organization
   when(firstComputation) {
-    for (i <- 0 until layer.in.rows) {
+    for (i <- 0 until layer.input.rows) {
       for (pe <- 0 until layer.PEsPerOutput) {
         for (cycle <- 0 until latency) {
           val flatIdx = cycle * layer.PEsPerOutput + pe
@@ -89,7 +89,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   }
 
   // Multiply and accumulate
-  for (i <- 0 until layer.in.rows) {
+  for (i <- 0 until layer.input.rows) {
     for (j <- 0 until layer.weights.cols) {
       // Compute partial sum using layer.PEsPerOutput multipliers
       // NOTE: Despite being (0.U) it works for signed partial sums as well since the bit representation for
@@ -133,18 +133,9 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
 
-  def shiftAccumulators(acc: nc.A, shamt: Int): nc.O = {
-    if (shamt == 0) {
-      acc.asTypeOf(nc.genO)
-    } else if (shamt > 0) {
-      (acc << shamt).asTypeOf(nc.genO)
-    } else {
-      (acc >> -shamt).asTypeOf(nc.genO)
-    }
-  }
   // TODO: Its not necessary to calculate the requantization in each cycle
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => shiftAccumulators(acc, layer.in.shamt + layer.weights.shamt)))
+    VecInit(row.map(acc => nc.applyShift(acc)))
   ))
 
   // External output comes from the output FIFO

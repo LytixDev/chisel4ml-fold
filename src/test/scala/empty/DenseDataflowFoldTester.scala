@@ -2,20 +2,158 @@ package empty
 
 import chisel3._
 import chiseltest._
-import empty.abstractions.{DenseLayer, QTensor, QuantizationParams, QuantizationScheme}
+import empty.abstractions.{DenseLayer, IntegerDataType, TensorSpec, TensorData}
 import empty.hw.DenseDataflowFold
 import empty.sim.DenseDataflowFoldSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
 
-  val basicQS = QuantizationScheme(
-    input = QuantizationParams(8, false),
-    weight = QuantizationParams(8, false),
-    mult = QuantizationParams(16, false),
-    accum = QuantizationParams(32, false),
-    output = QuantizationParams(8, false),
-  )
+  def runLayer(layer: DenseLayer, input: Array[Array[Int]]): Array[Array[Int]] = {
+    var output: Array[Array[Int]] = null
+
+    // TODO: Is it a better idea to pass the dut as a parameter?
+    test(new DenseDataflowFold(layer)) { dut =>
+      for (i <- 0 until layer.input.rows) {
+        for (j <- 0 until layer.input.cols) {
+          val value = if (layer.input.dt.isSigned) {
+            input(i)(j).S.asInstanceOf[dut.nc.I]
+          } else {
+            input(i)(j).U.asInstanceOf[dut.nc.I]
+          }
+          dut.io.inputIn.bits(i)(j).poke(value)
+        }
+      }
+
+      dut.io.inputIn.valid.poke(true.B)
+      dut.io.outputOut.ready.poke(true.B)
+      dut.clock.step(1)
+      dut.io.inputIn.valid.poke(false.B)
+
+      // Wait for output to become valid
+      while (!dut.io.outputOut.valid.peek().litToBoolean) {
+        dut.clock.step(1)
+      }
+
+      output = Array.ofDim[Int](layer.output.rows, layer.output.cols)
+      for (i <- 0 until layer.output.rows) {
+        for (j <- 0 until layer.output.cols) {
+          output(i)(j) = dut.io.outputOut.bits(i)(j).peek().litValue.toInt
+        }
+      }
+    }
+
+    output
+  }
+
+  "DenseDataflowFold" should "werk for a simple manually computed test" in {
+    // I have computed the expected results by hand
+
+    val input = Array(Array(1, 2))
+    val weights = Array(
+      Array(-1, -8),
+      Array(6, 0),
+    )
+    val expected = Array(Array(44, -32))
+
+    val in = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = true),
+      shamt = 0
+    )
+    val w = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = true),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = in,
+      weights = w,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      PEsPerOutput = 2
+    )
+
+    val output = runLayer(layer, input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(output(i)(j) == expected(i)(j), s"Hardware output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${output(i)(j)}")
+      }
+    }
+
+    // We take this as an oppurtonity to test the simulator as well
+    val sim = new DenseDataflowFoldSim(layer)
+    val simOutput = sim.compute(input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(simOutput(i)(j) == expected(i)(j), s"Simulator output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${simOutput(i)(j)}")
+      }
+    }
+  }
+
+  "DenseDataflowFold" should "werk with different input and weight bit widths" in {
+    // I have computed the expected results by hand
+
+    val input = Array(Array(8, -9))
+    val weights = Array(
+      Array(-1, -8),
+      Array(6, 0),
+    )
+    val expected = Array(Array(-496, -512))
+
+    val in = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = true),
+      shamt = 1
+    )
+    val w = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 16, isSigned = true),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = in,
+      weights = w,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      PEsPerOutput = 1 // Should work with 2 as well
+    )
+
+    val output = runLayer(layer, input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(output(i)(j) == expected(i)(j), s"Hardware output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${output(i)(j)}")
+      }
+    }
+
+    val sim = new DenseDataflowFoldSim(layer)
+    val simOutput = sim.compute(input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(simOutput(i)(j) == expected(i)(j), s"Simulator output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${simOutput(i)(j)}")
+      }
+    }
+  }
 
   "DenseDataflowFold" should "compute 2x4 matrix multiplication with 2 PEs" in {
     val input = Array(
@@ -29,9 +167,33 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
-    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
-    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 2, quantizationScheme = basicQS)
+    val inputSpec = TensorSpec(
+      rows = 2, cols = 4,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val weightsData = TensorData(
+      spec = TensorSpec(
+        rows = 4, cols = 2,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 2, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = inputSpec,
+      weights = weightsData,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+      PEsPerOutput = 2
+    )
 
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
@@ -77,9 +239,33 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
-    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
-    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 1, quantizationScheme = basicQS)
+    val inputSpec = TensorSpec(
+      rows = 2, cols = 4,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val weightsData = TensorData(
+      spec = TensorSpec(
+        rows = 4, cols = 2,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 2, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = inputSpec,
+      weights = weightsData,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+      PEsPerOutput = 1
+    )
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 
@@ -123,9 +309,33 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       Array(1, 0)
     )
 
-    val inTensor = QTensor(rows = 2, cols = 4, data = Array.empty, hasData = false, shamt = 0)
-    val weightTensor = QTensor(rows = 4, cols = 2, data = weights, hasData = true, shamt = 0)
-    val layer = DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 4, quantizationScheme = basicQS)
+    val inputSpec = TensorSpec(
+      rows = 2, cols = 4,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val weightsData = TensorData(
+      spec = TensorSpec(
+        rows = 4, cols = 2,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      ),
+      data = weights
+    )
+    val outputSpec = TensorSpec(
+      rows = 2, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = inputSpec,
+      weights = weightsData,
+      output = outputSpec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+      PEsPerOutput = 4
+    )
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
 
