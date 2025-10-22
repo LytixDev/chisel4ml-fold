@@ -3,23 +3,14 @@ package empty
 import chisel3._
 import chiseltest._
 import chiseltest.simulator.TreadleBackendAnnotation
-import empty.abstractions.{DenseLayer}
+import empty.abstractions.{DenseLayer, IntegerDataType, TensorSpec, TensorData}
 import empty.hw.Pipeline
 import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.util.Random
 
-/*
 class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
-
-  val basicQS = QuantizationScheme(
-    input = QuantizationParams(8, false),
-    weight = QuantizationParams(8, false),
-    mult = QuantizationParams(16, false),
-    accum = QuantizationParams(32, false),
-    output = QuantizationParams(8, false),
-  )
 
   "Pipeline" should "work with layers taking different amount of cycles" in {
     // Layer 1: 1x4 @ 4x2, with 1 PEs for each output (takes 4 cycles)
@@ -41,14 +32,61 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     //val expected = 35;
     val expectedCycles = 5;
 
-    // area cost in terms of muls is the same for these two
-    val in1 = QTensor(rows = 1, cols = 4, data = Array.empty, hasData = false, shamt = 0)
-    val w1 = QTensor(rows = 4, cols = 2, data = weights1, hasData = true, shamt = 0)
-    val layer1 = DenseLayer(in = in1, weights = w1, PEsPerOutput = 1, quantizationScheme = basicQS)
+    // Layer 1
+    val in1Spec = TensorSpec(
+      rows = 1, cols = 4,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val w1Data = TensorData(
+      spec = TensorSpec(
+        rows = 4, cols = 2,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      ),
+      data = weights1
+    )
+    val out1Spec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val layer1 = DenseLayer(
+      input = in1Spec,
+      weights = w1Data,
+      output = out1Spec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+      PEsPerOutput = 1
+    )
 
-    val in2 = QTensor(rows = 1, cols = 2, data = Array.empty, hasData = false, shamt = 0)
-    val w2 = QTensor(rows = 2, cols = 1, data = weights2, hasData = true, shamt = 0)
-    val layer2 = DenseLayer(in = in2, weights = w2, PEsPerOutput = 2, quantizationScheme = basicQS)
+    // Layer 2
+    val in2Spec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val w2Data = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 1,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      ),
+      data = weights2
+    )
+    val out2Spec = TensorSpec(
+      rows = 1, cols = 1,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 0
+    )
+    val layer2 = DenseLayer(
+      input = in2Spec,
+      weights = w2Data,
+      output = out2Spec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+      PEsPerOutput = 2
+    )
 
     val layers = Array(layer1, layer2)
     val sim = new PipelineSim(layers)
@@ -92,9 +130,32 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     // We use very small numbers for the weights and inputs because the quantization stuff is not implemented yet :-)
     val layers = Array.fill(4) {
       val weights = Array.fill(4, 4)(rand.nextInt(2))
-      val inTensor = QTensor(rows = 1, cols = 4, data = Array.empty, hasData = false, shamt = 0)
-      val weightTensor = QTensor(rows = 4, cols = 4, data = weights, hasData = true, shamt = 0)
-      DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = 1, quantizationScheme = basicQS)
+      val inSpec = TensorSpec(
+        rows = 1, cols = 4,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      )
+      val wData = TensorData(
+        spec = TensorSpec(
+          rows = 4, cols = 4,
+          dt = IntegerDataType(bitWidth = 8, isSigned = false),
+          shamt = 0
+        ),
+        data = weights
+      )
+      val outSpec = TensorSpec(
+        rows = 1, cols = 4,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      )
+      DenseLayer(
+        input = inSpec,
+        weights = wData,
+        output = outSpec,
+        mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+        accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+        PEsPerOutput = 1
+      )
     }
 
     val input1 = Array.fill(1, 4)(rand.nextInt(2))
@@ -188,33 +249,66 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
 
 
   "Pipeline" should "work for xor example" in {
-    val l1q = QuantizationScheme(
-      input = QuantizationParams(8, false),
-      weight = QuantizationParams(4, true),
-      mult = QuantizationParams(8, true),
-      accum = QuantizationParams(16, true),
-      output = QuantizationParams(4, false),
+    val in1Spec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -1
+    )
+    val w1Data = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 1
+      ),
+      data = Array(Array(-5, 2), Array(-5, 2))
+    )
+    val out1Spec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -5
     )
 
-    val l2q = QuantizationScheme(
-      input = QuantizationParams(4, false),
-      weight = QuantizationParams(4, true),
-      mult = QuantizationParams(8, true),
-      accum = QuantizationParams(16, true),
-      output = QuantizationParams(4, false),
+    val layer1 = DenseLayer(
+      input = in1Spec,
+      weights = w1Data,
+      output = out1Spec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      PEsPerOutput = 2
     )
 
-    val in1 = QTensor(rows = 1, cols = 2, data = Array(Array(0, 0)), hasData = true, shamt = -1)
-    val weights1 = QTensor(rows = 2, cols = 2, data = Array(Array(-5, 2), Array(-5, 2)), hasData = true, shamt = 1)
+    val in2Spec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -5
+    )
+    val w2Data = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 1,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 0
+      ),
+      data = Array(Array(-7), Array(1))
+    )
+    val out2Spec = TensorSpec(
+      rows = 1, cols = 1,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = 0
+    )
 
-    val in2 = QTensor(rows = 1, cols = 2, data = Array(Array()), hasData = false, shamt = -5)
-    val weights2 = QTensor(rows = 2, cols = 1, data = Array(Array(-7), Array(1)), hasData = true, shamt = 0)
+    val layer2 = DenseLayer(
+      input = in2Spec,
+      weights = w2Data,
+      output = out2Spec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      PEsPerOutput = 2
+    )
 
-    val layer1 = DenseLayer(in1, weights1, 2, l1q)
-    val layer2 = DenseLayer(in2, weights2, 2, l2q)
     val layers = Array(layer1, layer2)
+    val inputData = Array(Array(0, 0))
 
-    runPipelineTest(layers, Array(in1.data))
+    runPipelineTest(layers, Array(inputData))
   }
 
   // TODO: should also quantization the output once we have quantization in the pipeline
@@ -249,19 +343,42 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       val PEsPerOutput = validPEs(rand.nextInt(validPEs.length))
 
       currentN = k // Next layer's n must match this layer's k
-      val inTensor = QTensor(rows = 1, cols = n, data = Array.empty, hasData = false, shamt = 0)
-      val weightTensor = QTensor(rows = n, cols = k, data = weights, hasData = true, shamt = 0)
-      DenseLayer(in = inTensor, weights = weightTensor, PEsPerOutput = PEsPerOutput, quantizationScheme = basicQS)
+      val inSpec = TensorSpec(
+        rows = 1, cols = n,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      )
+      val wData = TensorData(
+        spec = TensorSpec(
+          rows = n, cols = k,
+          dt = IntegerDataType(bitWidth = 8, isSigned = false),
+          shamt = 0
+        ),
+        data = weights
+      )
+      val outSpec = TensorSpec(
+        rows = 1, cols = k,
+        dt = IntegerDataType(bitWidth = 8, isSigned = false),
+        shamt = 0
+      )
+      DenseLayer(
+        input = inSpec,
+        weights = wData,
+        output = outSpec,
+        mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
+        accDt = IntegerDataType(bitWidth = 32, isSigned = false),
+        PEsPerOutput = PEsPerOutput
+      )
     }
   }
 
   def runPipelineTest(layers: Array[DenseLayer], inputs: Array[Array[Array[Int]]]): Unit = {
     // Calculate expected cycles for each layer
-    val layerCycles = layers.map(layer => layer.in.cols / layer.PEsPerOutput)
+    val layerCycles = layers.map(layer => layer.input.cols / layer.PEsPerOutput)
 
     // layers.foreach { layer =>
-    //   val cycles = layer.in.cols / layer.PEsPerOutput
-    //   println(s"Layer n=${layer.in.cols}, PEs=${layer.PEsPerOutput}, cycles=$cycles")
+    //   val cycles = layer.input.cols / layer.PEsPerOutput
+    //   println(s"Layer n=${layer.input.cols}, PEs=${layer.PEsPerOutput}, cycles=$cycles")
     // }
 
     val firstLayerCycles = layerCycles(0)
@@ -284,7 +401,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       fork {
         for (inferenceIdx <- inputs.indices) {
           // Poke input data
-          for (j <- 0 until layers(0).in.cols) {
+          for (j <- 0 until layers(0).input.cols) {
             dut.io.inputIn.bits(0)(j).poke(inputs(inferenceIdx)(0)(j).U.asInstanceOf[dut.firstNc.I])
           }
           dut.io.inputIn.valid.poke(true.B)
@@ -361,5 +478,3 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
    */
 
 }
-
- */
