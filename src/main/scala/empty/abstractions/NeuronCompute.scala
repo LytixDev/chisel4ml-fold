@@ -24,7 +24,10 @@ abstract class NeuronCompute {
   def mul(i: I, w: W): M
   def toAccum(m: M): A
   def addAccum(a1: A, a2: A): A
-  def applyShift(a: A): A
+  //def applyShift(a: A): A
+
+  def approxReal(a: A): A
+  def requantize(a: A): O
 
   // Helper to convert Scala Int to weight type (handles signed vs unsigned)
   def weightScalaToChisel(value: Int): W
@@ -54,6 +57,7 @@ object NeuronCompute {
     def genO: O = dtToChisel(denseLayer.output.dt)
 
     def mul(i: I, w: W): M = {
+      // TODO: Can we simplify this?
       (denseLayer.input.dt.isSigned, denseLayer.weights.dt.isSigned) match {
         case (false, false) => (i.asUInt * w.asUInt).asTypeOf(genM)
         case (false, true)  => (i.asUInt * w.asSInt).asTypeOf(genM)
@@ -72,8 +76,7 @@ object NeuronCompute {
       }
     }
 
-    def applyShift(a: A): A = {
-      val shamt = denseLayer.input.shamt + denseLayer.weights.spec.shamt
+    def applyShift(a: A, shamt: Int): A = {
       if (shamt == 0) {
         a.asTypeOf(genO)
       } else if (shamt > 0) {
@@ -81,6 +84,15 @@ object NeuronCompute {
       } else {
         (a >> -shamt).asTypeOf(genO)
       }
+    }
+
+    def approxReal(a: A): A = {
+      val shamt = denseLayer.input.shamt + denseLayer.weights.spec.shamt
+      applyShift(a, shamt)
+    }
+
+    def requantize(a: A): O = {
+      applyShift(a, denseLayer.output.shamt)
     }
 
     def weightScalaToChisel(value: Int): W = {

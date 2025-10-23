@@ -149,17 +149,17 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     }
   }
 
-
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
 
   // TODO: Its not necessary to calculate the requantization in each cycle
+  // TODO: Is this too much combinational logic for one cycle?
   // First apply the shift to approximate the real value
   // Then apply the activation function
-  // Then requantize into the output domain <- TODO
+  // Then requantize into the output domain
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => activationFunction(nc.applyShift(acc))))
+    VecInit(row.map(acc => nc.requantize(activationFunction(nc.approxReal(acc)))))
   ))
 
   // External output comes from the output FIFO

@@ -33,24 +33,29 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
         }
 
         val shamt = layer.input.shamt + layer.weights.spec.shamt
-        val shifted = if (shamt == 0) {
-          accumulator
-        } else if (shamt > 0) {
-          accumulator << shamt
-        } else {
-          accumulator >> -shamt
-        }
+        val approxReal = applyShift(accumulator, shamt)
 
-        // Apply activation function after shifting
-        val activated = applyActivation(shifted)
+        val activated = applyActivation(approxReal)
 
-        val quantized = quantize(activated, layer.output.dt.bitWidth, layer.output.dt.isSigned)
+        val requantized = applyShift(activated, layer.output.shamt)
 
-        outputs(i)(j) = quantized
+        //val requantized = quantize(activated, layer.output.dt.bitWidth, layer.output.dt.isSigned)
+
+        outputs(i)(j) = requantized
       }
     }
 
     outputs
+  }
+
+  private def applyShift(value: Int, shamt: Int): Int = {
+    return if (shamt == 0) {
+      value
+    } else if (shamt > 0) {
+      value << shamt
+    } else {
+      value >> -shamt
+    }
   }
 
   private def quantize(value: Int, bitWidth: Int, isSigned: Boolean): Int = {
