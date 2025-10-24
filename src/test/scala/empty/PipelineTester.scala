@@ -9,8 +9,15 @@ import empty.sim.PipelineSim
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.util.Random
+import scala.reflect.ClassTag
 
 class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
+
+  // Helper function to transpose 2D arrays
+  def transpose[T: ClassTag](matrix: Array[Array[T]]): Array[Array[T]] = {
+    if (matrix.isEmpty || matrix.head.isEmpty) matrix
+    else matrix.head.indices.map(col => matrix.map(row => row(col)).toArray).toArray
+  }
 
   "Pipeline" should "work with layers taking different amount of cycles" in {
     // Layer 1: 1x4 @ 4x2, with 1 PEs for each output (takes 4 cycles)
@@ -372,7 +379,11 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
-  def runPipelineTest(layers: Array[DenseLayer], inputs: Array[Array[Array[Int]]]): Unit = {
+  def runPipelineTest(
+    layers: Array[DenseLayer],
+    inputs: Array[Array[Array[Int]]],
+    expectedOutputs: Option[Array[Int]] = None
+  ): Unit = {
     // Calculate expected cycles for each layer
     val layerCycles = layers.map(layer => layer.input.cols / layer.PEsPerOutput)
 
@@ -386,12 +397,19 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     val delayBetweenPipelinedResults = layerCycles.max
     //val inputInterval = firstLayerCycles  // Send inputs at first layer's rate
 
-    val expectedOutputs = inputs.map { input =>
-      var result = input
-      for (layer <- layers) {
-        result = matmul(result, layer.weights.data)
-      }
-      result
+    val computedExpectedOutputs = expectedOutputs match {
+      case Some(userExpected) =>
+        // Use user-provided expected outputs - wrap each value in a 1x1 array to match the format
+        inputs.indices.map(i => Array(Array(userExpected(i)))).toArray
+      case None =>
+        // Calculate expected outputs by running through layers
+        inputs.map { input =>
+          var result = input
+          for (layer <- layers) {
+            result = matmul(result, layer.weights.data)
+          }
+          result
+        }
     }
 
     test(new Pipeline(layers)) { dut =>
@@ -431,7 +449,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
           // Verify output
           for (j <- 0 until layers.last.weights.cols) {
             val actual = dut.io.outputOut.bits(0)(j).peek().litValue.toInt
-            val expected = expectedOutputs(inferenceIdx)(0)(j)
+            val expected = computedExpectedOutputs(inferenceIdx)(0)(j)
             assert(actual == expected,
               s"Inference $inferenceIdx, output[$j]: expected $expected, got $actual")
           }
@@ -440,6 +458,136 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
         }
       }.join()
     }
+  }
+
+  "Pipeline" should "work for spec net" in {
+    // This is a dummy network. The expected values are from a run through Brevitas.
+
+    val w1 = transpose(Array(
+      Array( 7,  3,  7,  6, -3,  0, -2, -1),
+      Array( 7,  7, -7,  7,  6,  7, -6, -4),
+      Array( 7,  2,  7, -3, -6, -5,  4, -7),
+      Array(-3, -2,  7,  7, -3,  5, -1, -7),
+      Array( 0, -7,  7,  7, -7, -7, -7,  0),
+      Array(-6, -7, -7, -7, -7, -7,  1, -7),
+      Array(-1, -1,  2,  3,  2,  7, -7,  7),
+      Array( 2,  7,  7, -7,  1, -7, -2,  1),
+      Array(-5, -7,  7, -7,  7, -1, -3, -2),
+      Array( 7,  0,  7,  1, -2,  2,  1,  0),
+      Array( 7,  7, -4,  6, -7,  7,  7, -7),
+      Array( 7,  7, -7, -1, -6,  7, -3, -5),
+      Array( 5,  6, -3,  7,  7,  7, -4, -7),
+      Array(-7, -7,  3,  3, -7,  6,  7,  0),
+      Array( 6,  7, -7, -1,  1,  4,  7, -6),
+      Array( 4,  6, -1,  7, -7,  7, -7, -1)
+    ))
+
+    val w2 = transpose(Array(
+      Array( 5, -6,  0, -1,  1, -3,  6,  7,  6, -4, -2,  0,  6,  5, -6, -7),
+      Array( 3,  0,  3, -5,  2,  4, -1,  6, -3,  3, -6, -7, -2,  6, -5,  4),
+      Array( 3, -1,  3,  4, -6, -6, -7, -1, -2,  7, -6,  6,  4, -1, -3, -3),
+      Array( 7,  7,  3, -2, -6, -1, -2, -4, -4,  3, -2,  0,  2,  1, -7,  2),
+      Array(-1,  6,  3,  4, -6, -2, -1,  0, -4,  0, -4, -7, -6, -2,  6,  1),
+      Array( 4, -2,  6,  0,  3, -7, -3,  7,  2,  7, -1,  1,  3,  4,  0,  7)
+    ))
+
+    val w3 = transpose(Array(Array(-5, -3,  4,  1, -6, -5)))
+
+    // l1
+    val in1Spec = TensorSpec(
+      rows = 1, cols = 8,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -8
+    )
+    val w1d = TensorData(
+      spec = TensorSpec(
+        rows = 8, cols = 16,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = -5
+      ),
+      data = w1
+    )
+    val out1Spec = TensorSpec(
+      rows = 1, cols = 16,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -4
+    )
+    val layer1 = DenseLayer(
+      input = in1Spec,
+      weights = w1d,
+      output = out1Spec,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      PEsPerOutput = 8
+    )
+
+    // l2
+    val in2Spec = TensorSpec(
+      rows = 1, cols = 16,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -4
+    )
+    val w2d = TensorData(
+      spec = TensorSpec(
+        rows = 16, cols = 6,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = -5
+      ),
+      data = w2
+    )
+    val out2Spec = TensorSpec(
+      rows = 1, cols = 6,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -4
+    )
+    val layer2 = DenseLayer(
+      input = in2Spec,
+      weights = w2d,
+      output = out2Spec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      PEsPerOutput = 16
+    )
+
+    // l3
+    val in3Spec = TensorSpec(
+      rows = 1, cols = 6,
+      dt = IntegerDataType(bitWidth = 4, isSigned = false),
+      shamt = -4
+    )
+    val w3d = TensorData(
+      spec = TensorSpec(
+        rows = 6, cols = 1,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = -4
+      ),
+      data = w3
+    )
+    val out3Spec = TensorSpec(
+      rows = 1, cols = 1,
+      dt = IntegerDataType(bitWidth = 8, isSigned = true),
+      shamt = -8
+    )
+    val layer3 = DenseLayer(
+      input = in3Spec,
+      weights = w3d,
+      output = out3Spec,
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      PEsPerOutput = 6
+    )
+
+    val layers = Array(layer1, layer2, layer3)
+
+    val expected = Array(0, -12, -12, -4)
+    val inputs = Array(
+      Array(0, 0, 0, 0, 0, 0, 0, 0),
+      Array(1, 2, 3, 4, 5, 6, 7, 8),
+      Array(20, 44, 128, 69, 1, 33, 8, 41),
+      Array(254, 0, 0, 255, 0, 0, 256, 300),
+    )
+
+    runPipelineTest(layers, Array(inputs), Some(expected))
   }
 
   /*

@@ -92,6 +92,7 @@ object NeuronCompute {
     }
 
     def requantize(a: A): O = {
+      // TODO: do we need to think about rounding?
       applyShift(a, denseLayer.output.shamt)
     }
 
