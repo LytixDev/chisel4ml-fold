@@ -1,6 +1,6 @@
 package empty
 
-import empty.abstractions.{DenseLayer, IntegerDataType, TensorSpec, TensorData}
+import empty.abstractions.{DenseLayer, IntegerDataType, ReLU, TensorData, TensorSpec}
 import empty.hw.Pipeline
 
 // TODO: This will be the entrypoint that spins up a server and accepts IR from the frontend.
@@ -40,7 +40,8 @@ object Main extends App {
       output = out1,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 56
+      activationFunc = ReLU,
+      PEsPerOutput = 784  // 56
     )
 
     val in2 = TensorSpec(
@@ -87,8 +88,7 @@ object Main extends App {
   val layers = MNIST_MLP()
   printPipelineStatistics(layers)
 
-  // Generate Verilog
-  println(s"\nGenerating SystemVerilog using ${if (useMLIRBackend) "MLIR/CIRCT" else "classic FIRRTL"} backend...")
+  println(s"\nGenerating ... ")
 
   if (useMLIRBackend) {
     // New MLIR-based CIRCT backend (requires Chisel 6+)
@@ -108,5 +108,5 @@ object Main extends App {
     // )
   }
 
-  println("\nSystemVerilog generated successfully in generated/Pipeline.sv")
+  println("\nOutput successfully generated in generated/Pipeline.sv")
 }

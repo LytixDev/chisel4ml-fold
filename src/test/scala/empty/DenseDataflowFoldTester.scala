@@ -136,7 +136,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      activation = ReLU,
+      activationFunc = ReLU,
       PEsPerOutput = 2
     )
 
@@ -192,7 +192,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      activation = ReLU,
+      activationFunc = ReLU,
       PEsPerOutput = 2
     )
 

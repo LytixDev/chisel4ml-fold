@@ -129,7 +129,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   }
 
   def activationFunction(acc: nc.A): nc.A = {
-    layer.activation match {
+    layer.activationFunc match {
       // TODO: Ensure the hardware generated for this actually nothing
       case empty.abstractions.Identity => acc
       case empty.abstractions.ReLU => {
@@ -139,7 +139,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
           val zero = 0.S.asTypeOf(nc.genA)
           // Mux(acc < zero, zero, acc)
           // We need to explicitly cast to a SInt() because the Bits representation does not contain signedness info :-(
-          Mux(acc.asTypeOf(SInt()) < 0.S, zero, acc)
+          Mux(acc.asTypeOf(SInt()) < 0.S, zero, acc.asTypeOf(nc.genA))
         }
       }
       case empty.abstractions.Sigmoid => {

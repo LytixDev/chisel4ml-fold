@@ -84,7 +84,7 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
   }
 
   private def applyActivation(value: Int): Int = {
-    layer.activation match {
+    layer.activationFunc match {
       case Identity => value
       case ReLU => {
         if (value < 0) 0 else value
