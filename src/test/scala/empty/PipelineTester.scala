@@ -401,7 +401,10 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       case Some(userExpected) =>
         inputs.indices.map(i => Array(userExpected(i))).toArray
       case None =>
-        // Calculate expected outputs by running through layers
+        // TODO: Use the PipelinSim
+        // We're not doing it rn because its broken
+        // The result is that this function only works when there is no quantization artifacts and no activation
+        // functions
         inputs.map { input =>
           var result = input
           for (layer <- layers) {
