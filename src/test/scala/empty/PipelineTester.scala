@@ -382,7 +382,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
   def runPipelineTest(
     layers: Array[DenseLayer],
     inputs: Array[Array[Array[Int]]],
-    expectedOutputs: Option[Array[Int]] = None
+    expectedOutputs: Option[Array[Array[Int]]] = None
   ): Unit = {
     // Calculate expected cycles for each layer
     val layerCycles = layers.map(layer => layer.input.cols / layer.PEsPerOutput)
@@ -399,8 +399,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
 
     val computedExpectedOutputs = expectedOutputs match {
       case Some(userExpected) =>
-        // Use user-provided expected outputs - wrap each value in a 1x1 array to match the format
-        inputs.indices.map(i => Array(Array(userExpected(i)))).toArray
+        inputs.indices.map(i => Array(userExpected(i))).toArray
       case None =>
         // Calculate expected outputs by running through layers
         inputs.map { input =>
@@ -579,7 +578,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
 
     val layers = Array(layer1, layer2, layer3)
 
-    val expected = Array(0, -12, -12, -4)
+    val expected = Array(Array(0), Array(-12), Array(-12), Array(-4))
     val inputs = Array(
       Array(0, 0, 0, 0, 0, 0, 0, 0),
       Array(1, 2, 3, 4, 5, 6, 7, 8),
