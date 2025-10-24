@@ -40,7 +40,7 @@ object Main extends App {
       output = out1,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 784  // Fully parallel (no folding)
+      PEsPerOutput = 56
     )
 
     val in2 = TensorSpec(
@@ -74,66 +74,6 @@ object Main extends App {
     Array(layer1, layer2)
   }
 
-  def XORNet(): Array[DenseLayer] = {
-    val in1 = TensorSpec(
-      rows = 1, cols = 2,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = -2
-    )
-    val weights1 = TensorData(
-      spec = TensorSpec(
-        rows = 2, cols = 2,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 1
-      ),
-      data = Array(Array(-5, 3), Array(-5, 3))
-    )
-    val out1 = TensorSpec(
-      rows = 1, cols = 2,
-      dt = IntegerDataType(bitWidth = 4, isSigned = false),
-      shamt = -5
-    )
-
-    val in2 = TensorSpec(
-      rows = 1, cols = 2,
-      dt = IntegerDataType(bitWidth = 4, isSigned = false),
-      shamt = -5
-    )
-    val weights2 = TensorData(
-      spec = TensorSpec(
-        rows = 2, cols = 1,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 0
-      ),
-      data = Array(Array(-7), Array(4))
-    )
-    val out2 = TensorSpec(
-      rows = 1, cols = 1,
-      dt = IntegerDataType(bitWidth = 4, isSigned = false),
-      shamt = 0
-    )
-
-    val layer1 = DenseLayer(
-      input = in1,
-      weights = weights1,
-      output = out1,
-      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 2
-    )
-
-    val layer2 = DenseLayer(
-      input = in2,
-      weights = weights2,
-      output = out2,
-      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      PEsPerOutput = 2
-    )
-
-    Array(layer1, layer2)
-  }
-
   def printPipelineStatistics(layers: Array[DenseLayer]): Unit = {
     println(s"Pipeline configuration:")
     layers.zipWithIndex.foreach { case (layer, idx) =>
@@ -144,8 +84,7 @@ object Main extends App {
     println(s"  Total multipliers: ${layers.map(l => l.input.rows * l.weights.cols * l.PEsPerOutput).sum}")
   }
 
-  //val layers = MNIST_MLP()
-  val layers = XORNet()
+  val layers = MNIST_MLP()
   printPipelineStatistics(layers)
 
   // Generate Verilog
