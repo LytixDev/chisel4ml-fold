@@ -51,12 +51,17 @@ object NeuronCompute {
     type O = Bits
 
     def genI: I = dtToChisel(denseLayer.input.dt)
+
     def genW: W = dtToChisel(denseLayer.weights.dt)
+
     def genM: M = dtToChisel(denseLayer.mulDt)
+
     def genA: A = dtToChisel(denseLayer.accDt)
+
     def genO: O = dtToChisel(denseLayer.output.dt)
 
-    // Precompute multiplication function for faster elaboration
+    // This is much faster than the option below, but is it correct?
+    // Will i.asSInt reinterpret the bytes as signed? If so we may have a problem here.
     private val mulFunc: (I, W) => M =
       if (denseLayer.mulDt.isSigned) {
         (i: I, w: W) => (i.asSInt * w.asSInt).asTypeOf(genM)
@@ -67,19 +72,13 @@ object NeuronCompute {
     def mul(i: I, w: W): M = mulFunc(i, w)
 
     // def mul(i: I, w: W): M = {
-    //   if (denseLayer.mulDt.isSigned) {
-    //     (i.asSInt * w.asSInt).asTypeOf(genM)
-    //   } else {
-    //     (i.asUInt * w.asUInt).asTypeOf(genM)
-    //   }
-    // }
-
     // (denseLayer.input.dt.isSigned, denseLayer.weights.dt.isSigned) match {
     //   case (false, false) => (i.asUInt * w.asUInt).asTypeOf(genM)
     //   case (false, true)  => (i.asUInt * w.asSInt).asTypeOf(genM)
     //   case (true, false)  => (i.asSInt * w.asUInt).asTypeOf(genM)
     //   case (true, true)   => (i.asSInt * w.asSInt).asTypeOf(genM)
     // }
+    //}
 
     def toAccum(m: M): A = m.asTypeOf(genA)
 
