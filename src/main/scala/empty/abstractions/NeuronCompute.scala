@@ -56,15 +56,30 @@ object NeuronCompute {
     def genA: A = dtToChisel(denseLayer.accDt)
     def genO: O = dtToChisel(denseLayer.output.dt)
 
-    def mul(i: I, w: W): M = {
-      // TODO: Can we simplify this?
-      (denseLayer.input.dt.isSigned, denseLayer.weights.dt.isSigned) match {
-        case (false, false) => (i.asUInt * w.asUInt).asTypeOf(genM)
-        case (false, true)  => (i.asUInt * w.asSInt).asTypeOf(genM)
-        case (true, false)  => (i.asSInt * w.asUInt).asTypeOf(genM)
-        case (true, true)   => (i.asSInt * w.asSInt).asTypeOf(genM)
+    // Precompute multiplication function for faster elaboration
+    private val mulFunc: (I, W) => M =
+      if (denseLayer.mulDt.isSigned) {
+        (i: I, w: W) => (i.asSInt * w.asSInt).asTypeOf(genM)
+      } else {
+        (i: I, w: W) => (i.asUInt * w.asUInt).asTypeOf(genM)
       }
-    }
+
+    def mul(i: I, w: W): M = mulFunc(i, w)
+
+    // def mul(i: I, w: W): M = {
+    //   if (denseLayer.mulDt.isSigned) {
+    //     (i.asSInt * w.asSInt).asTypeOf(genM)
+    //   } else {
+    //     (i.asUInt * w.asUInt).asTypeOf(genM)
+    //   }
+    // }
+
+    // (denseLayer.input.dt.isSigned, denseLayer.weights.dt.isSigned) match {
+    //   case (false, false) => (i.asUInt * w.asUInt).asTypeOf(genM)
+    //   case (false, true)  => (i.asUInt * w.asSInt).asTypeOf(genM)
+    //   case (true, false)  => (i.asSInt * w.asUInt).asTypeOf(genM)
+    //   case (true, true)   => (i.asSInt * w.asSInt).asTypeOf(genM)
+    // }
 
     def toAccum(m: M): A = m.asTypeOf(genA)
 
