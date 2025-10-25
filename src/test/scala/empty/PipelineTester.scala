@@ -446,7 +446,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
           }
 
           val expectedCycles = if (inferenceIdx == 0) totalPipelineCycles else delayBetweenPipelinedResults
-          println(s"Output $inferenceIdx arrived after $cycles cycles (expected $expectedCycles)")
+          //println(s"Output $inferenceIdx arrived after $cycles cycles (expected $expectedCycles)")
 
           // Verify output
           for (j <- 0 until layers.last.weights.cols) {
