@@ -92,6 +92,14 @@ object Main extends App {
       ),
       data = Array.fill(784, 32)(rand.nextInt(8) - 4)  // Random weights in [-4, 3]
     )
+    val bias1 = TensorData(
+      spec = TensorSpec(
+        rows = 1, cols = 32,
+        dt = IntegerDataType(bitWidth = 32, isSigned = true),
+        shamt = 0
+      ),
+      data = Array.fill(1, 32)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
+    )
     val out1 = TensorSpec(
       rows = 1, cols = 32,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
@@ -101,6 +109,7 @@ object Main extends App {
     val layer1 = DenseLayer(
       input = in1,
       weights = weights1,
+      bias = Some(bias1),
       output = out1,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
@@ -121,6 +130,14 @@ object Main extends App {
       ),
       data = Array.fill(32, 10)(rand.nextInt(8) - 4)
     )
+    val bias2 = TensorData(
+      spec = TensorSpec(
+        rows = 1, cols = 10,
+        dt = IntegerDataType(bitWidth = 32, isSigned = true),
+        shamt = 0
+      ),
+      data = Array.fill(1, 10)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
+    )
     val out2 = TensorSpec(
       rows = 1, cols = 10,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
@@ -130,6 +147,7 @@ object Main extends App {
     val layer2 = DenseLayer(
       input = in2,
       weights = weights2,
+      bias = Some(bias2),
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
