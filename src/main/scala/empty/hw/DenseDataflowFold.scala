@@ -14,13 +14,20 @@ import empty.abstractions.DenseLayer
  */
 class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module {
   val nc = empty.abstractions.NeuronCompute(layer)
+
+  // Basic matrix multiply rules
+  require(layer.output.rows == layer.input.rows,
+    s"Output rows (${layer.output.rows}) must match input rows (${layer.input.rows})")
+  require(layer.output.cols == layer.weights.cols,
+    s"Output cols (${layer.output.cols}) must match weight cols (${layer.weights.cols})")
+
   val io = IO(new Bundle{
     // TODO: In a folded design, we don't operate on every input in the first cycle.
     //       In fact, we can be much more smart about this. Instead of sending the entire input at the same time we
     //       could instead send it in smaller chunks ensuring that the first chunk contains enough inputs so we can
     //       fully saturate our PEs. This would decrease the amount of wires we need by quite a lot.
     val inputIn = Flipped(Decoupled(Vec(layer.input.rows, Vec(layer.input.cols, nc.genI))))
-    val outputOut = Decoupled(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genO)))
+    val outputOut = Decoupled(Vec(layer.output.rows, Vec(layer.output.cols, nc.genO)))
   })
 
   require(layer.PEsPerOutput >= 1 && layer.PEsPerOutput <= layer.input.cols)
@@ -55,12 +62,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
-  val accumulators = Reg(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genA)))
+  val accumulators = Reg(Vec(layer.output.rows, Vec(layer.output.cols, nc.genA)))
 
   // NOTE: Incurs a 1 cycle latency by default w/o the flow = true param
   // TODO: So the FIFOs give us decoupling between layers. However, if two layers are perfectly in sync, they don't
   //       necessarily need to be decoupled and perhaps we could directly wire them together?
-  val outputFifo = Module(new Queue(Vec(layer.input.rows, Vec(layer.weights.cols, nc.genO)), outFifoDepth, flow=true))
+  val outputFifo = Module(new Queue(Vec(layer.output.rows, Vec(layer.output.cols, nc.genO)), outFifoDepth, flow=true))
 
   // Can accept input when not computing
   io.inputIn.ready := !computing
