@@ -10,8 +10,8 @@ class Pipeline(layers: Array[DenseLayer]) extends Module {
   // Validate that layers are compatible (output of layer i matches input of layer i+1)
   // NOTE: This should probably be done by the frontend
   for (i <- 0 until layers.length - 1) {
-    require(layers(i).weights.cols == layers(i + 1).input.cols,
-      s"Layer $i output dimension (k=${layers(i).weights.cols}) must match layer ${i+1} input dimension (n=${layers(i+1).input.cols})")
+    require(layers(i).output.cols == layers(i + 1).input.cols,
+      s"Layer $i output dimension (k=${layers(i).output.cols}) must match layer ${i+1} input dimension (n=${layers(i+1).input.cols})")
   }
 
   val firstLayer = layers.head
@@ -22,7 +22,7 @@ class Pipeline(layers: Array[DenseLayer]) extends Module {
 
   val io = IO(new Bundle {
     val inputIn = Flipped(Decoupled(Vec(firstLayer.input.rows, Vec(firstLayer.input.cols, firstNc.genI))))
-    val outputOut = Decoupled(Vec(lastLayer.input.rows, Vec(lastLayer.weights.cols, lastNc.genO)))
+    val outputOut = Decoupled(Vec(lastLayer.output.rows, Vec(lastLayer.output.cols, lastNc.genO)))
   })
 
   val denseModules = layers.map(layer => Module(new DenseDataflowFold(layer)))
