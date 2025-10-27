@@ -8,6 +8,70 @@ object Main extends App {
   val useMLIRBackend = false
   println("Creating dummy pipeline for synthesis...")
 
+  def TINY_MLP(): Array[DenseLayer] = {
+    // l1: in: 1x16, weights: 16 x 16, out: 1x16
+    // l2: in: 1x16, weights: 16x1, out: 1x1
+
+    val rand = new scala.util.Random(42)
+    val in1 = TensorSpec(
+      rows = 1, cols = 16,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -1
+    )
+    val weights1 = TensorData(
+      spec = TensorSpec(
+        rows = 16, cols = 16,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = Array.fill(16, 16)(rand.nextInt(8) - 4)
+    )
+    val out1 = TensorSpec(
+      rows = 1, cols = 16,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -3
+    )
+
+    val layer1 = DenseLayer(
+      input = in1,
+      weights = weights1,
+      output = out1,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
+      activationFunc = ReLU,
+      PEsPerOutput = 4
+    )
+
+    val in2 = TensorSpec(
+      rows = 1, cols = 16,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = -3
+    )
+    val weights2 = TensorData(
+      spec = TensorSpec(
+        rows = 16, cols = 1,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = Array.fill(16, 1)(rand.nextInt(8) - 4)
+    )
+    val out2 = TensorSpec(
+      rows = 1, cols = 1,
+      dt = IntegerDataType(bitWidth = 8, isSigned = false),
+      shamt = 1
+    )
+
+    val layer2 = DenseLayer(
+      input = in2,
+      weights = weights2,
+      output = out2,
+      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
+      PEsPerOutput = 4
+    )
+
+    Array(layer1, layer2)
+  }
 
   def MNIST_MLP(): Array[DenseLayer] = {
     // MNIST MLP with random weights
@@ -85,6 +149,7 @@ object Main extends App {
     println(s"  Total multipliers: ${layers.map(l => l.input.rows * l.weights.cols * l.PEsPerOutput).sum}")
   }
 
+  //val layers = TINY_MLP()
   val layers = MNIST_MLP()
   printPipelineStatistics(layers)
 
@@ -92,13 +157,11 @@ object Main extends App {
 
   if (useMLIRBackend) {
     // New MLIR-based CIRCT backend (requires Chisel 6+)
-    /*
-    import circt.stage.ChiselStage
-    ChiselStage.emitSystemVerilogFile(
-      new Pipeline(layers),
-      args = Array("--target-dir", "generated")
-    )
-    */
+    // import circt.stage.ChiselStage
+    // ChiselStage.emitSystemVerilogFile(
+    //   new Pipeline(layers),
+    //   args = Array("--target-dir", "generated")
+    // )
   } else {
     // Classic FIRRTL backend (Chisel 3.x) - requires switching to Chisel 3.x in build.sbt
     // Uncomment the commented lines in build.sbt and comment out the Chisel 6 lines to use this
@@ -110,5 +173,5 @@ object Main extends App {
     )
   }
 
-  println("\nOutput successfully generated in generated/Pipeline.sv")
+  println("\nOutput successfully generated in generated/Pipeline.(s)v")
 }

@@ -162,11 +162,14 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   // TODO: Its not necessary to calculate the requantization in each cycle
   // TODO: Is this too much combinational logic for one cycle?
-  // First apply the shift to approximate the real value
+  // First add the bias
+  // Then apply the shift to approximate the real value
   // Then apply the activation function
   // Then requantize into the output domain
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>
-    VecInit(row.map(acc => nc.requantize(activationFunction(nc.approxReal(acc)))))
+    VecInit(row.map(acc => nc.requantize(
+                           activationFunction(
+                           nc.approxReal(acc)))))
   ))
 
   // External output comes from the output FIFO

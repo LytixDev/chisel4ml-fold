@@ -30,10 +30,10 @@ case object Identity extends ActivationFunc
 case class DenseLayer(
                        input: TensorSpec,
                        weights: TensorData,
+                       bias: Option[TensorData] = None,
                        output: TensorSpec,
                        mulDt: IntegerDataType, // Data type for multiplication results
                        accDt: IntegerDataType, // Data type for accumulators
-                       //bias: Option[TensorData] = None,
                        activationFunc: ActivationFunc = Identity,
                        PEsPerOutput: Int
                      ) {
