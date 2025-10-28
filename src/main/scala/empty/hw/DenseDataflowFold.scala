@@ -48,6 +48,13 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     }
   )
 
+  // Bias storage (one value per output column)
+  val biases: Option[Vec[nc.A]] = layer.bias.map { biasData =>
+    VecInit((0 until layer.weights.cols).map { j =>
+      nc.biasScalaToChisel(biasData.data(0)(j))
+    })
+  }
+
   // Computation state
   val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
   val computing = RegInit(false.B)
@@ -126,7 +133,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
       when(isComputing) {
         when(firstComputation) {
           // First cycle
-          accumulators(i)(j) := partialSum
+          // If we have bias we just this cycle to add it to the accumulators
+          val partialSumWithBias = biases match {
+            case Some(biasVec) => nc.addAccum(partialSum, biasVec(j))
+            case None => partialSum
+          }
+          accumulators(i)(j) := partialSumWithBias
         }.otherwise {
           // TODO: Look into tree reduction or similar
           accumulators(i)(j) := nc.addAccum(accumulators(i)(j), partialSum)
@@ -160,9 +172,9 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
   outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
 
-  // TODO: Its not necessary to calculate the requantization in each cycle
+  // TODO: Its not necessary to calculate all of this in each cycle
   // TODO: Is this too much combinational logic for one cycle?
-  // First apply the shift to approximate the real value
+  // Apply the shift to approximate the real value
   // Then apply the activation function
   // Then requantize into the output domain
   outputFifo.io.enq.bits := VecInit(accumulators.map(row =>

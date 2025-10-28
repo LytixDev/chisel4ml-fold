@@ -157,6 +157,72 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
+  "DenseDataflowFold" should "werk for a simple manually computed test with ReLU and bias" in {
+    // I have computed the expected results by hand
+
+    val input = Array(Array(1, 2))
+    val weights = Array(
+      Array(-1, -8),
+      Array(6, 0),
+    )
+    val biases = Array(Array(2, 3))
+    val expected = Array(Array(44 + 8, 0))
+
+    val in = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 4, isSigned = true),
+      shamt = 0
+    )
+    val w = TensorData(
+      spec = TensorSpec(
+        rows = 2, cols = 2,
+        dt = IntegerDataType(bitWidth = 4, isSigned = true),
+        shamt = 2
+      ),
+      data = weights
+    )
+    val b = TensorData(
+      spec = TensorSpec(
+        rows = 1, cols = 2,
+        dt = IntegerDataType(bitWidth = 8, isSigned = true), // NOTE: unused
+        shamt = 0 // NOTE: unused
+      ),
+      data = biases
+    )
+    val outputSpec = TensorSpec(
+      rows = 1, cols = 2,
+      dt = IntegerDataType(bitWidth = 8, isSigned = true),
+      shamt = 0
+    )
+
+    val layer = DenseLayer(
+      input = in,
+      weights = w,
+      output = outputSpec,
+      bias = Some(b),
+      mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      accDt = IntegerDataType(bitWidth = 8, isSigned = true),
+      activationFunc = ReLU,
+      PEsPerOutput = 2
+    )
+
+    val output = runLayer(layer, input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(output(i)(j) == expected(i)(j), s"Hardware output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${output(i)(j)}")
+      }
+    }
+
+    // We take this as an oppurtonity to test the simulator as well
+    val sim = new DenseDataflowFoldSim(layer)
+    val simOutput = sim.compute(input)
+    for (i <- 0 until expected.length) {
+      for (j <- 0 until expected(i).length) {
+        assert(simOutput(i)(j) == expected(i)(j), s"Simulator output mismatch at [$i][$j]: expected ${expected(i)(j)}, got ${simOutput(i)(j)}")
+      }
+    }
+  }
+
   "DenseDataflowFold" should "werk for a simple manually computed test with ReLU and requantization" in {
     // I have computed the expected results by hand
 

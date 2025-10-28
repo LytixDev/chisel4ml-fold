@@ -16,7 +16,7 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
     require(inputs.length == layer.input.rows, s"Input batch size must be ${layer.input.rows}, got ${inputs.length}")
     require(inputs.forall(_.length == layer.input.cols), s"Input feature size must be ${layer.input.cols}")
 
-    val outputs = Array.ofDim[Int](layer.input.rows, layer.weights.cols)
+    val outputs = Array.ofDim[Int](layer.output.rows, layer.output.cols)
 
     for (i <- 0 until layer.input.rows) {
       for (j <- 0 until layer.weights.cols) {
@@ -32,8 +32,14 @@ class DenseDataflowFoldSim(layer: DenseLayer) {
           accumulator = accumulator + product
         }
 
+        // Add bias if present
+        val accumulatorWithBias = layer.bias match {
+          case Some(biasData) => accumulator + biasData.data(0)(j)
+          case None => accumulator
+        }
+
         val shamt = layer.input.shamt + layer.weights.spec.shamt
-        val approxReal = applyShift(accumulator, shamt)
+        val approxReal = applyShift(accumulatorWithBias, shamt)
 
         val activated = applyActivation(approxReal)
 

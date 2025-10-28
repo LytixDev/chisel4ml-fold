@@ -31,6 +31,10 @@ abstract class NeuronCompute {
 
   // Helper to convert Scala Int to weight type (handles signed vs unsigned)
   def weightScalaToChisel(value: Int): W
+
+  // Helper to convert bias value to accumulator type
+  // TODO: We should look into having the bias have its own Bits type and not always rely on the accumulator
+  def biasScalaToChisel(value: Int): A
 }
 
 // Factory object that creates NeuronCompute implementations from DenseLayers
@@ -115,6 +119,14 @@ object NeuronCompute {
         value.S.asTypeOf(genW)
       } else {
         value.U.asTypeOf(genW)
+      }
+    }
+
+    def biasScalaToChisel(value: Int): A = {
+      if (denseLayer.accDt.isSigned) {
+        value.S.asTypeOf(genA)
+      } else {
+        value.U.asTypeOf(genA)
       }
     }
   }
