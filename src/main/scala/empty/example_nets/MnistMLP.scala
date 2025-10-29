@@ -3,7 +3,7 @@ package empty.example_nets
 import empty.abstractions.{DenseLayer, IntegerDataType, ReLU, TensorData, TensorSpec}
 
 object MnistMLP {
-  def apply(): Array[DenseLayer] = {
+  def lol(): Array[DenseLayer] = {
     // MNIST MLP with random weights
     // l1: in: 1x784, weights: 784 x 32, out: 1x32
     // l2: in: 1x32, weights: 32x10, out: 1x10
@@ -44,7 +44,7 @@ object MnistMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 56  // 56
+      PEsPerOutput = 784  // 56
     )
 
     val in2 = TensorSpec(
@@ -81,9 +81,33 @@ object MnistMLP {
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 2
+      PEsPerOutput = 32
     )
 
     Array(layer1, layer2)
+  }
+
+  def apply(): Array[DenseLayer] = {
+    val layer1 = DenseLayer.withRandomWeights(
+      m = 1, n = 784, k = 512,
+      PEsPerOutput = 56,
+      withBias = true,
+      activationFunc = ReLU,
+    )
+
+    val layer2 = DenseLayer.withRandomWeights(
+      m = 1, n = 512, k = 256,
+      PEsPerOutput = 32,
+      withBias = true,
+      activationFunc = ReLU,
+    )
+
+    val layer3 = DenseLayer.withRandomWeights(
+      m = 1, n = 256, k = 10,
+      PEsPerOutput = 16,
+      withBias = true,
+    )
+
+    Array(layer1, layer2, layer3)
   }
 }
