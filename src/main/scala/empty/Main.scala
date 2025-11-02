@@ -9,8 +9,8 @@ object Main extends App {
   val useMLIRBackend = false
   println("Creating dummy pipeline for synthesis...")
 
-  //val layers = TinyMLP()
-  val layers = MnistMLP()
+  val layers = TinyMLP()
+  //val layers = MnistMLP()
   //val layers = DummyNet()
 
   val metrics = Metrics.calculatePipelineMetrics(layers)
