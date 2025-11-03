@@ -1,175 +1,20 @@
 package empty
 
-import empty.abstractions.{DenseLayer, IntegerDataType, ReLU, TensorData, TensorSpec}
+import empty.abstractions.DenseLayer
 import empty.hw.Pipeline
+import empty.example_nets.{TinyMLP, MnistMLP, DummyNet}
 
 // TODO: This will be the entrypoint that spins up a server and accepts IR from the frontend.
 object Main extends App {
   val useMLIRBackend = false
   println("Creating dummy pipeline for synthesis...")
 
-  def TINY_MLP(): Array[DenseLayer] = {
-    // l1: in: 1x16, weights: 16 x 16, out: 1x16
-    // l2: in: 1x16, weights: 16x1, out: 1x1
+  //val layers = TinyMLP()
+  val layers = MnistMLP()
+  //val layers = DummyNet()
 
-    val rand = new scala.util.Random(42)
-    val in1 = TensorSpec(
-      rows = 1, cols = 16,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = -1
-    )
-    val weights1 = TensorData(
-      spec = TensorSpec(
-        rows = 16, cols = 16,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 2
-      ),
-      data = Array.fill(16, 16)(rand.nextInt(8) - 4)
-    )
-    val out1 = TensorSpec(
-      rows = 1, cols = 16,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = -3
-    )
-
-    val layer1 = DenseLayer(
-      input = in1,
-      weights = weights1,
-      output = out1,
-      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      activationFunc = ReLU,
-      PEsPerOutput = 4
-    )
-
-    val in2 = TensorSpec(
-      rows = 1, cols = 16,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = -3
-    )
-    val weights2 = TensorData(
-      spec = TensorSpec(
-        rows = 16, cols = 1,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 2
-      ),
-      data = Array.fill(16, 1)(rand.nextInt(8) - 4)
-    )
-    val out2 = TensorSpec(
-      rows = 1, cols = 1,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 1
-    )
-
-    val layer2 = DenseLayer(
-      input = in2,
-      weights = weights2,
-      output = out2,
-      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 4
-    )
-
-    Array(layer1, layer2)
-  }
-
-  def MNIST_MLP(): Array[DenseLayer] = {
-    // MNIST MLP with random weights
-    // l1: in: 1x784, weights: 784 x 32, out: 1x32
-    // l2: in: 1x32, weights: 32x10, out: 1x10
-
-    val rand = new scala.util.Random(42)
-    val in1 = TensorSpec(
-      rows = 1, cols = 784,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
-    )
-    val weights1 = TensorData(
-      spec = TensorSpec(
-        rows = 784, cols = 32,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 0
-      ),
-      data = Array.fill(784, 32)(rand.nextInt(8) - 4)  // Random weights in [-4, 3]
-    )
-    val bias1 = TensorData(
-      spec = TensorSpec(
-        rows = 1, cols = 32,
-        dt = IntegerDataType(bitWidth = 32, isSigned = true),
-        shamt = 0
-      ),
-      data = Array.fill(1, 32)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
-    )
-    val out1 = TensorSpec(
-      rows = 1, cols = 32,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
-    )
-
-    val layer1 = DenseLayer(
-      input = in1,
-      weights = weights1,
-      bias = Some(bias1),
-      output = out1,
-      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      activationFunc = ReLU,
-      PEsPerOutput = 784  // 56
-    )
-
-    val in2 = TensorSpec(
-      rows = 1, cols = 32,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
-    )
-    val weights2 = TensorData(
-      spec = TensorSpec(
-        rows = 32, cols = 10,
-        dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 0
-      ),
-      data = Array.fill(32, 10)(rand.nextInt(8) - 4)
-    )
-    val bias2 = TensorData(
-      spec = TensorSpec(
-        rows = 1, cols = 10,
-        dt = IntegerDataType(bitWidth = 32, isSigned = true),
-        shamt = 0
-      ),
-      data = Array.fill(1, 10)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
-    )
-    val out2 = TensorSpec(
-      rows = 1, cols = 10,
-      dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
-    )
-
-    val layer2 = DenseLayer(
-      input = in2,
-      weights = weights2,
-      bias = Some(bias2),
-      output = out2,
-      mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 32  // Fully parallel (no folding)
-    )
-
-    Array(layer1, layer2)
-  }
-
-  def printPipelineStatistics(layers: Array[DenseLayer]): Unit = {
-    println(s"Pipeline configuration:")
-    layers.zipWithIndex.foreach { case (layer, idx) =>
-      val cycles = layer.input.cols / layer.PEsPerOutput
-      println(s"  Layer ${idx + 1}: ${layer.weights.rows}x${layer.weights.cols} with ${layer.PEsPerOutput} PEs ($cycles cycles)")
-    }
-    println(s"  Total latency: ${layers.map(l => l.input.cols / l.PEsPerOutput).sum} cycles")
-    println(s"  Total multipliers: ${layers.map(l => l.input.rows * l.weights.cols * l.PEsPerOutput).sum}")
-  }
-
-  //val layers = TINY_MLP()
-  val layers = MNIST_MLP()
-  printPipelineStatistics(layers)
+  val metrics = Metrics.calculatePipelineMetrics(layers)
+  println(metrics)
 
   println(s"\nGenerating ... ")
 
@@ -184,11 +29,11 @@ object Main extends App {
     // Classic FIRRTL backend (Chisel 3.x) - requires switching to Chisel 3.x in build.sbt
     // Uncomment the commented lines in build.sbt and comment out the Chisel 6 lines to use this
     //throw new UnsupportedOperationException("FIRRTL backend requires Chisel 3.x. Switch dependencies in build.sbt.")
-    import chisel3.stage.ChiselStage
-    (new ChiselStage).emitVerilog(
-      new Pipeline(layers),
-      Array("--target-dir", "generated")
-    )
+    // import chisel3.stage.ChiselStage
+    // (new ChiselStage).emitVerilog(
+    //   new Pipeline(layers),
+    //   Array("--target-dir", "generated")
+    // )
   }
 
   println("\nOutput successfully generated in generated/Pipeline.(s)v")

@@ -118,12 +118,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
           inputBuffer(i)(pe)(currentCycle))
 
         // PE-first weight access: PE dimension is compile-time constant, only cycle is dynamic.
-        // This eliminates the large n-to-1 mux, replacing it with a small latency-to-1 mux per PE.
         val product = nc.mul(inputVal, weights(pe)(currentCycle)(j))
         val productAccum = nc.toAccum(product)
-        // TODO: look into "partial product tree for multiplier"
-        //       wallace tree?
-        // We could also use this current approach when PEsPerOutput is small, but do some pipelining when it is larger
+        // TODO: Faster reduction?
+        //       In each cycle, the partial sum produces a partial dot product result.
+        //       Specifically, the terms of the dot product calculated in each cycle is directly equal PEsPerOutput
+        //       We could also use this current approach when PEsPerOutput is small, but do some pipelining when it is larger
         partialSum = nc.addAccum(partialSum, productAccum)
       }
 
