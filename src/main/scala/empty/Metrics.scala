@@ -17,13 +17,15 @@ case class AdderSpec(
 case class DenseLayerMetrics(
   latencyCycles: Int,
   multipliers: MultiplierSpec,
-  adders: AdderSpec
+  adders: AdderSpec,
+  totalParameters: Int
 ) {
   override def toString: String = {
     s"""DenseLayer:
        |  Latency: $latencyCycles cycles
        |  Multipliers: ${multipliers.count} (${multipliers.inputBitWidth}b x ${multipliers.weightBitWidth}b -> ${multipliers.outputBitWidth}b)
        |  Adders: ${adders.count} (${adders.bitWidth}b)
+       |  Total Parameters: $totalParameters
        |""".stripMargin
   }
 }
@@ -33,11 +35,12 @@ case class PipelineMetrics(
   maxLayerLatency: Int,
   totalMultipliers: MultiplierSpec,
   totalAdders: AdderSpec,
+  totalParameters: Int,
   layerMetrics: Seq[DenseLayerMetrics]
 ) {
   override def toString: String = {
     val layerDetails = layerMetrics.zipWithIndex.map { case (lm, idx) =>
-      s"  Layer $idx: ${lm.latencyCycles} cycles, ${lm.multipliers.count} muls, ${lm.adders.count} adds"
+      s"  Layer $idx: ${lm.latencyCycles} cycles, ${lm.multipliers.count} muls, ${lm.adders.count} adds, ${lm.totalParameters} params"
     }.mkString("\n")
 
     s"""Pipeline Metrics:
@@ -45,6 +48,7 @@ case class PipelineMetrics(
        |  Max Layer Latency: $maxLayerLatency cycles
        |  Total Multipliers: ${totalMultipliers.count}
        |  Total Adders: ${totalAdders.count}
+       |  Total Parameters: $totalParameters
        |
        |Layer Details:
        |$layerDetails
@@ -79,10 +83,16 @@ object Metrics {
       bitWidth = layer.accDt.bitWidth
     )
 
+    // Calculate total parameters (weights + biases)
+    val weightParams = n * k
+    val biasParams = layer.bias.map(_ => k).getOrElse(0)
+    val totalParams = weightParams + biasParams
+
     DenseLayerMetrics(
       latencyCycles = latency,
       multipliers = multiplierSpec,
-      adders = adderSpec
+      adders = adderSpec,
+      totalParameters = totalParams
     )
   }
 
@@ -109,11 +119,14 @@ object Metrics {
       bitWidth = 0
     )
 
+    val totalParams = layerMetrics.map(_.totalParameters).sum
+
     PipelineMetrics(
       totalLatencyCycles = totalLatency,
       maxLayerLatency = maxLatency,
       totalMultipliers = totalMultiplierSpec,
       totalAdders = totalAdderSpec,
+      totalParameters = totalParams,
       layerMetrics = layerMetrics
     )
   }

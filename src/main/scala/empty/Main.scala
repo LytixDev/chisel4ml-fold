@@ -9,8 +9,8 @@ object Main extends App {
   val useMLIRBackend = false
   println("Creating dummy pipeline for synthesis...")
 
-  val layers = TinyMLP()
-  //val layers = MnistMLP()
+  //val layers = TinyMLP()
+  val layers = MnistMLP()
   //val layers = DummyNet()
 
   val metrics = Metrics.calculatePipelineMetrics(layers)
@@ -29,11 +29,11 @@ object Main extends App {
     // Classic FIRRTL backend (Chisel 3.x) - requires switching to Chisel 3.x in build.sbt
     // Uncomment the commented lines in build.sbt and comment out the Chisel 6 lines to use this
     //throw new UnsupportedOperationException("FIRRTL backend requires Chisel 3.x. Switch dependencies in build.sbt.")
-    import chisel3.stage.ChiselStage
-    (new ChiselStage).emitVerilog(
-      new Pipeline(layers),
-      Array("--target-dir", "generated")
-    )
+    // import chisel3.stage.ChiselStage
+    // (new ChiselStage).emitVerilog(
+    //   new Pipeline(layers),
+    //   Array("--target-dir", "generated")
+    // )
   }
 
   println("\nOutput successfully generated in generated/Pipeline.(s)v")
