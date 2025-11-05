@@ -39,8 +39,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val weights = VecInit(
     (0 until layer.multipliersPerDotProduct).map { pe =>
       VecInit((0 until totalCyclesNeeded).map { cycle =>
+        val flatIdx = cycle * layer.multipliersPerDotProduct + pe
         VecInit((0 until layer.weights.cols).map { j =>
-          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           nc.weightScalaToChisel(layer.weights.data(flatIdx)(j))
         })
       })
@@ -112,7 +112,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
         // The only muxing required is for the currentCycle index
 
         // On the first cycle, read from input directly, otherwise from the PE's time-indexed buffer
-        val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
+        val currentCycle = cycleCounter
         val inputVal = Mux(firstComputation,
           io.inputIn.bits(i)(pe),
           inputBuffer(i)(pe)(currentCycle))
