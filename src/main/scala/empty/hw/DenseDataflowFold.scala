@@ -35,12 +35,13 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   val totalCyclesNeeded = layer.input.cols / layer.multipliersPerDotProduct
 
   // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
-  // Converts from row-major indexing to a 3D structure based on the multiplier idx, cycle, and col
+  // Converts from row-major indexing to a 3D structure based on output col, PE idx, and cycle
+  // Layout: weights(j)(pe)(cycle) where j=output dimension, pe=processing element, cycle=time step
   val weights = VecInit(
-    (0 until layer.multipliersPerDotProduct).map { pe =>
-      VecInit((0 until totalCyclesNeeded).map { cycle =>
-        val flatIdx = cycle * layer.multipliersPerDotProduct + pe
-        VecInit((0 until layer.weights.cols).map { j =>
+    (0 until layer.weights.cols).map { j =>
+      VecInit((0 until layer.multipliersPerDotProduct).map { pe =>
+        VecInit((0 until totalCyclesNeeded).map { cycle =>
+          val flatIdx = pe * totalCyclesNeeded + cycle
           nc.weightScalaToChisel(layer.weights.data(flatIdx)(j))
         })
       })
@@ -117,8 +118,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
           io.inputIn.bits(i)(pe),
           inputBuffer(i)(pe)(currentCycle))
 
-        // PE-first weight access: PE dimension is compile-time constant, only cycle is dynamic.
-        val product = nc.mul(inputVal, weights(pe)(currentCycle)(j))
+        // Weight access: j (output col) and pe are compile-time constants, only cycle is dynamic.
+        val product = nc.mul(inputVal, weights(j)(pe)(currentCycle))
         val productAccum = nc.toAccum(product)
         // TODO: Faster reduction?
         //       In each cycle, the partial sum produces a partial dot product result.
