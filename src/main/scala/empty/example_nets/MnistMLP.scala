@@ -44,7 +44,7 @@ object MnistMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 784  // 8, 16, 28, 49, 56, 98, 112
+      multipliersPerOutputElement = 784  // 8, 16, 28, 49, 56, 98, 112
     )
 
     val in2 = TensorSpec(
@@ -81,7 +81,7 @@ object MnistMLP {
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 32
+      multipliersPerOutputElement = 32
     )
 
     Array(layer1, layer2)
@@ -90,21 +90,21 @@ object MnistMLP {
   def apply(): Array[DenseLayer] = {
     val layer1 = DenseLayer.withRandomWeights(
       m = 1, n = 784, k = 512,
-      PEsPerOutput = 14,
+      multipliersPerOutputElement = 14,
       withBias = true,
       activationFunc = ReLU,
     )
 
     val layer2 = DenseLayer.withRandomWeights(
       m = 1, n = 512, k = 256,
-      PEsPerOutput = 8,
+      multipliersPerOutputElement = 8,
       withBias = true,
       activationFunc = ReLU,
     )
 
     val layer3 = DenseLayer.withRandomWeights(
       m = 1, n = 256, k = 10,
-      PEsPerOutput = 4,
+      multipliersPerOutputElement = 4,
       withBias = true,
     )
 

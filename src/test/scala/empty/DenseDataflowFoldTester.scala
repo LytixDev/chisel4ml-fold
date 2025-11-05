@@ -81,7 +81,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      PEsPerOutput = 2
+      multipliersPerOutputElement = 2
     )
 
     val output = runLayer(layer, input)
@@ -137,7 +137,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 2
+      multipliersPerOutputElement = 2
     )
 
     val output = runLayer(layer, input)
@@ -203,7 +203,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 2
+      multipliersPerOutputElement = 2
     )
 
     val output = runLayer(layer, input)
@@ -259,7 +259,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 2
+      multipliersPerOutputElement = 2
     )
 
     val output = runLayer(layer, input)
@@ -314,7 +314,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      PEsPerOutput = 1 // Should work with 2 as well
+      multipliersPerOutputElement = 1 // Should work with 2 as well
     )
 
     val output = runLayer(layer, input)
@@ -370,7 +370,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
       accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-      PEsPerOutput = 2
+      multipliersPerOutputElement = 2
     )
 
     val sim = new DenseDataflowFoldSim(layer)
@@ -442,7 +442,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
       accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-      PEsPerOutput = 1
+      multipliersPerOutputElement = 1
     )
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
@@ -512,7 +512,7 @@ class DenseDataflowFoldTester extends AnyFlatSpec with ChiselScalatestTester {
       output = outputSpec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
       accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-      PEsPerOutput = 4
+      multipliersPerOutputElement = 4
     )
     val sim = new DenseDataflowFoldSim(layer)
     val expected = sim.compute(input)
