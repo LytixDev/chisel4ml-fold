@@ -43,7 +43,7 @@ object DummyNet {
       output = out1Spec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
       accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-      multipliersPerOutputElement = 1
+      multipliersPerDotProduct = 1
     )
 
     // Layer 2
@@ -71,7 +71,7 @@ object DummyNet {
       output = out2Spec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
       accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-      multipliersPerOutputElement = 2
+      multipliersPerDotProduct = 2
     )
 
     Array(layer1, layer2)

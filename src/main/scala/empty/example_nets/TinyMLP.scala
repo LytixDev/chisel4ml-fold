@@ -34,7 +34,7 @@ object TinyMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      multipliersPerOutputElement = 8
+      multipliersPerDotProduct = 8
     )
 
     val in2 = TensorSpec(
@@ -62,7 +62,7 @@ object TinyMLP {
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      multipliersPerOutputElement = 8
+      multipliersPerDotProduct = 8
     )
 
     Array(layer1, layer2)

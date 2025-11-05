@@ -35,7 +35,7 @@ case class DenseLayer(
                        mulDt: IntegerDataType, // Data type for multiplication results
                        accDt: IntegerDataType, // Data type for accumulators
                        activationFunc: ActivationFunc = Identity,
-                       multipliersPerOutputElement: Int
+                       multipliersPerDotProduct: Int
                      ) {
   // Convenience accessors
   def m = input.rows
@@ -47,8 +47,8 @@ case class DenseLayer(
   require(output.cols == k, s"Output cols must match weight cols")
   require(output.rows == m, s"Output rows must match input rows")
   //bias.foreach(b => require(b.cols == k && b.rows == 1, s"Bias must be 1x$k"))
-  require(multipliersPerOutputElement >= 1 && multipliersPerOutputElement <= n)
-  require(n % multipliersPerOutputElement == 0)
+  require(multipliersPerDotProduct >= 1 && multipliersPerDotProduct <= n)
+  require(n % multipliersPerDotProduct == 0)
 }
 
 object DenseLayer {
@@ -114,7 +114,7 @@ object DenseLayer {
       mulDt = IntegerDataType(bitWidth = mulBitWidth, isSigned = true),
       accDt = IntegerDataType(bitWidth = accBitWidth, isSigned = true),
       activationFunc = activationFunc,
-      multipliersPerOutputElement = multipliersPerOutputElement
+      multipliersPerDotProduct = multipliersPerOutputElement
     )
   }
 }

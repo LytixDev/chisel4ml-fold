@@ -94,7 +94,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
         output = outSpec,
         mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
         accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-        multipliersPerOutputElement = 1
+        multipliersPerDotProduct = 1
       )
     }
 
@@ -214,7 +214,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       output = out1Spec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      multipliersPerOutputElement = 2
+      multipliersPerDotProduct = 2
     )
 
     val in2Spec = TensorSpec(
@@ -242,7 +242,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       output = out2Spec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      multipliersPerOutputElement = 2
+      multipliersPerDotProduct = 2
     )
 
     val layers = Array(layer1, layer2)
@@ -307,7 +307,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
         output = outSpec,
         mulDt = IntegerDataType(bitWidth = 16, isSigned = false),
         accDt = IntegerDataType(bitWidth = 32, isSigned = false),
-        multipliersPerOutputElement = PEsPerOutput
+        multipliersPerDotProduct = PEsPerOutput
       )
     }
   }
@@ -318,7 +318,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
     expectedOutputs: Option[Array[Array[Int]]] = None
   ): Unit = {
     // Calculate expected cycles for each layer
-    val layerCycles = layers.map(layer => layer.input.cols / layer.multipliersPerOutputElement)
+    val layerCycles = layers.map(layer => layer.input.cols / layer.multipliersPerDotProduct)
 
     // layers.foreach { layer =>
     //   val cycles = layer.input.cols / layer.PEsPerOutput
@@ -453,7 +453,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       output = out1Spec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 16, isSigned = true),
-      multipliersPerOutputElement = 8
+      multipliersPerDotProduct = 8
     )
 
     // l2
@@ -481,7 +481,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       output = out2Spec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      multipliersPerOutputElement = 16
+      multipliersPerDotProduct = 16
     )
 
     // l3
@@ -509,7 +509,7 @@ class PipelineTester extends AnyFlatSpec with ChiselScalatestTester {
       output = out3Spec,
       mulDt = IntegerDataType(bitWidth = 8, isSigned = true),
       accDt = IntegerDataType(bitWidth = 8, isSigned = true),
-      multipliersPerOutputElement = 6
+      multipliersPerDotProduct = 6
     )
 
     val layers = Array(layer1, layer2, layer3)

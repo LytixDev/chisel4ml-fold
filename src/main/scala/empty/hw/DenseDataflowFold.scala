@@ -30,18 +30,17 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     val outputOut = Decoupled(Vec(layer.output.rows, Vec(layer.output.cols, nc.genO)))
   })
 
-  require(layer.multipliersPerOutputElement >= 1 && layer.multipliersPerOutputElement <= layer.input.cols)
-  require(layer.input.cols % layer.multipliersPerOutputElement == 0)
-  val totalCyclesNeeded = layer.input.cols / layer.multipliersPerOutputElement
+  require(layer.multipliersPerDotProduct >= 1 && layer.multipliersPerDotProduct <= layer.input.cols)
+  require(layer.input.cols % layer.multipliersPerDotProduct == 0)
+  val totalCyclesNeeded = layer.input.cols / layer.multipliersPerDotProduct
 
   // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
-  // Organizes the weights into PEs first, then latency/cycle, then the out
-  // weights(pe)(cycle)(output_j)
+  // Converts from row-major indexing to a 3D structure based on the multiplier idx, cycle, and col
   val weights = VecInit(
-    (0 until layer.multipliersPerOutputElement).map { pe =>
+    (0 until layer.multipliersPerDotProduct).map { pe =>
       VecInit((0 until totalCyclesNeeded).map { cycle =>
         VecInit((0 until layer.weights.cols).map { j =>
-          val flatIdx = cycle * layer.multipliersPerOutputElement + pe
+          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           nc.weightScalaToChisel(layer.weights.data(flatIdx)(j))
         })
       })
@@ -65,7 +64,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs to match PE access.
   // PE-first organization: Each PE gets its own small time-indexed buffer.
   // NOTE: It is also possible to do latency-first initialization.
-  val inputBuffer = Reg(Vec(layer.input.rows, Vec(layer.multipliersPerOutputElement, Vec(totalCyclesNeeded, nc.genI))))
+  val inputBuffer = Reg(Vec(layer.input.rows, Vec(layer.multipliersPerDotProduct, Vec(totalCyclesNeeded, nc.genI))))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
@@ -86,9 +85,9 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Load input buffer in PE-first organization
   when(firstComputation) {
     for (i <- 0 until layer.input.rows) {
-      for (pe <- 0 until layer.multipliersPerOutputElement) {
+      for (pe <- 0 until layer.multipliersPerDotProduct) {
         for (cycle <- 0 until totalCyclesNeeded) {
-          val flatIdx = cycle * layer.multipliersPerOutputElement + pe
+          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           inputBuffer(i)(pe)(cycle) := io.inputIn.bits(i)(flatIdx)
         }
       }
@@ -103,14 +102,15 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   }
 
   // Multiply and accumulate
+  // Performs a partial dot product in each cycle.
+  // After all cycles (cycleCounter = totalCyclesNeeded), each accumulator stores the final dot product result.
   for (i <- 0 until layer.input.rows) {
     for (j <- 0 until layer.weights.cols) {
-      // Compute partial sum using layer.PEsPerOutput multipliers
-      // NOTE: Despite being (0.U) it works for signed partial sums as well since the bit representation for
-      //       0 in unsigned and signed is the same.
       var partialSum = 0.U.asTypeOf(nc.genA)
-      for (pe <- 0 until layer.multipliersPerOutputElement) {
-        // PE-first indexing.
+      for (pe <- 0 until layer.multipliersPerDotProduct) {
+        // These loops will be unrolled, and i, j and pe become "compile-time" constants, i.e. they require no muxing
+        // The only muxing required is for the currentCycle index
+
         // On the first cycle, read from input directly, otherwise from the PE's time-indexed buffer
         val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
         val inputVal = Mux(firstComputation,

@@ -61,7 +61,7 @@ object Metrics {
     val m = layer.input.rows
     val n = layer.input.cols
     val k = layer.weights.cols
-    val p = layer.multipliersPerOutputElement
+    val p = layer.multipliersPerDotProduct
 
     val latency = n / p
 

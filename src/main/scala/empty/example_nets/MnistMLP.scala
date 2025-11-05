@@ -44,7 +44,7 @@ object MnistMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      multipliersPerOutputElement = 784  // 8, 16, 28, 49, 56, 98, 112
+      multipliersPerDotProduct = 784  // 8, 16, 28, 49, 56, 98, 112
     )
 
     val in2 = TensorSpec(
@@ -81,7 +81,7 @@ object MnistMLP {
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      multipliersPerOutputElement = 32
+      multipliersPerDotProduct = 32
     )
 
     Array(layer1, layer2)
