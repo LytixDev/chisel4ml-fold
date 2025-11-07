@@ -41,7 +41,8 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     (0 until layer.weights.cols).map { j =>
       VecInit((0 until layer.multipliersPerDotProduct).map { pe =>
         VecInit((0 until totalCyclesNeeded).map { cycle =>
-          val flatIdx = pe * totalCyclesNeeded + cycle
+          //val flatIdx = pe * totalCyclesNeeded + cycle
+          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           nc.weightScalaToChisel(layer.weights.data(flatIdx)(j))
         })
       })
