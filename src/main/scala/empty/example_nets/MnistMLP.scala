@@ -12,13 +12,13 @@ object MnistMLP {
     val in1 = TensorSpec(
       rows = 1, cols = 784,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
+      shamt = 1
     )
     val weights1 = TensorData(
       spec = TensorSpec(
         rows = 784, cols = 32,
         dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 0
+        shamt = -1
       ),
       data = Array.fill(784, 32)(rand.nextInt(8) - 4)  // Random weights in [-4, 3]
     )
@@ -26,14 +26,14 @@ object MnistMLP {
       spec = TensorSpec(
         rows = 1, cols = 32,
         dt = IntegerDataType(bitWidth = 32, isSigned = true),
-        shamt = 0
+        shamt = 2
       ),
       data = Array.fill(1, 32)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
     )
     val out1 = TensorSpec(
       rows = 1, cols = 32,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
+      shamt = 3
     )
 
     val layer1 = DenseLayer(
@@ -44,7 +44,7 @@ object MnistMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      multipliersPerDotProduct = 784  // 8, 16, 28, 49, 56, 98, 112
+      multipliersPerDotProduct = 112  // 8, 16, 28, 49, 56, 98, 112
     )
 
     val in2 = TensorSpec(
@@ -56,7 +56,7 @@ object MnistMLP {
       spec = TensorSpec(
         rows = 32, cols = 10,
         dt = IntegerDataType(bitWidth = 4, isSigned = true),
-        shamt = 0
+        shamt = 3
       ),
       data = Array.fill(32, 10)(rand.nextInt(8) - 4)
     )
@@ -64,14 +64,14 @@ object MnistMLP {
       spec = TensorSpec(
         rows = 1, cols = 10,
         dt = IntegerDataType(bitWidth = 32, isSigned = true),
-        shamt = 0
+        shamt = 4
       ),
       data = Array.fill(1, 10)(rand.nextInt(16) - 8)  // Random biases in [-8, 7]
     )
     val out2 = TensorSpec(
       rows = 1, cols = 10,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
-      shamt = 0
+      shamt = -3
     )
 
     val layer2 = DenseLayer(
@@ -88,6 +88,7 @@ object MnistMLP {
   }
 
   def apply(): Array[DenseLayer] = {
+    return lol()
     val layer1 = DenseLayer.withRandomWeights(
       m = 1, n = 784, k = 512,
       multipliersPerOutputElement = 14,

@@ -108,7 +108,12 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // After all cycles (cycleCounter = totalCyclesNeeded), each accumulator stores the final dot product result.
   for (i <- 0 until layer.input.rows) {
     for (j <- 0 until layer.weights.cols) {
+
+      // Logic for each output neuron
+
       var partialSum = 0.U.asTypeOf(nc.genA)
+
+      // For each multiplier of this current output neuron
       for (pe <- 0 until layer.multipliersPerDotProduct) {
         // These loops will be unrolled, and i, j and pe become "compile-time" constants, i.e. they require no muxing
         // The only muxing required is for the currentCycle index
