@@ -30,18 +30,19 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
     val outputOut = Decoupled(Vec(layer.output.rows, Vec(layer.output.cols, nc.genO)))
   })
 
-  require(layer.PEsPerOutput >= 1 && layer.PEsPerOutput <= layer.input.cols)
-  require(layer.input.cols % layer.PEsPerOutput == 0)
-  val latency = layer.input.cols / layer.PEsPerOutput
+  require(layer.multipliersPerDotProduct >= 1 && layer.multipliersPerDotProduct <= layer.input.cols)
+  require(layer.input.cols % layer.multipliersPerDotProduct == 0)
+  val totalCyclesNeeded = layer.input.cols / layer.multipliersPerDotProduct
 
   // TODO: Consider storing this in BRAM (and what kind of memory is this synthesized into?)
-  // Organizes the weights into PEs first, then latency/cycle, then the out
-  // weights(pe)(cycle)(output_j)
+  // Converts from row-major indexing to a 3D structure based on output col, PE idx, and cycle
+  // Layout: weights(j)(pe)(cycle) where j=output dimension, pe=processing element, cycle=time step
   val weights = VecInit(
-    (0 until layer.PEsPerOutput).map { pe =>
-      VecInit((0 until latency).map { cycle =>
-        VecInit((0 until layer.weights.cols).map { j =>
-          val flatIdx = cycle * layer.PEsPerOutput + pe
+    (0 until layer.weights.cols).map { j =>
+      VecInit((0 until layer.multipliersPerDotProduct).map { pe =>
+        VecInit((0 until totalCyclesNeeded).map { cycle =>
+          //val flatIdx = pe * totalCyclesNeeded + cycle
+          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           nc.weightScalaToChisel(layer.weights.data(flatIdx)(j))
         })
       })
@@ -56,7 +57,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   }
 
   // Computation state
-  val cycleCounter = RegInit(0.U(log2Ceil(latency + 1).W))
+  val cycleCounter = RegInit(0.U(log2Ceil(totalCyclesNeeded + 1).W))
   val computing = RegInit(false.B)
 
   // TODO: So we load from the FIFO and into the regs. Can we just load from the FIFO and avoid storing it in the regs?
@@ -65,7 +66,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Instead of one huge register array requiring complex dynamic muxing, we organize the inputs to match PE access.
   // PE-first organization: Each PE gets its own small time-indexed buffer.
   // NOTE: It is also possible to do latency-first initialization.
-  val inputBuffer = Reg(Vec(layer.input.rows, Vec(layer.PEsPerOutput, Vec(latency, nc.genI))))
+  val inputBuffer = Reg(Vec(layer.input.rows, Vec(layer.multipliersPerDotProduct, Vec(totalCyclesNeeded, nc.genI))))
 
   // One accumulator per output element (m*k total)
   // TODO: maybe with the FIFOs we can optimize this? i.e maybe we need less
@@ -86,39 +87,45 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
   // Load input buffer in PE-first organization
   when(firstComputation) {
     for (i <- 0 until layer.input.rows) {
-      for (pe <- 0 until layer.PEsPerOutput) {
-        for (cycle <- 0 until latency) {
-          val flatIdx = cycle * layer.PEsPerOutput + pe
+      for (pe <- 0 until layer.multipliersPerDotProduct) {
+        for (cycle <- 0 until totalCyclesNeeded) {
+          val flatIdx = cycle * layer.multipliersPerDotProduct + pe
           inputBuffer(i)(pe)(cycle) := io.inputIn.bits(i)(flatIdx)
         }
       }
     }
     computing := true.B
     cycleCounter := 1.U
-  }.elsewhen(computing && cycleCounter < (latency - 1).U) {
+  }.elsewhen(computing && cycleCounter < (totalCyclesNeeded - 1).U) {
     cycleCounter := cycleCounter + 1.U
-  }.elsewhen(computing && cycleCounter === (latency - 1).U) {
+  }.elsewhen(computing && cycleCounter === (totalCyclesNeeded - 1).U) {
     computing := false.B
     cycleCounter := 0.U
   }
 
   // Multiply and accumulate
+  // Performs a partial dot product in each cycle.
+  // After all cycles (cycleCounter = totalCyclesNeeded), each accumulator stores the final dot product result.
   for (i <- 0 until layer.input.rows) {
     for (j <- 0 until layer.weights.cols) {
-      // Compute partial sum using layer.PEsPerOutput multipliers
-      // NOTE: Despite being (0.U) it works for signed partial sums as well since the bit representation for
-      //       0 in unsigned and signed is the same.
+
+      // Logic for each output neuron
+
       var partialSum = 0.U.asTypeOf(nc.genA)
-      for (pe <- 0 until layer.PEsPerOutput) {
-        // PE-first indexing.
+
+      // For each multiplier of this current output neuron
+      for (pe <- 0 until layer.multipliersPerDotProduct) {
+        // These loops will be unrolled, and i, j and pe become "compile-time" constants, i.e. they require no muxing
+        // The only muxing required is for the currentCycle index
+
         // On the first cycle, read from input directly, otherwise from the PE's time-indexed buffer
-        val currentCycle = Mux(firstComputation, 0.U, cycleCounter)
+        val currentCycle = cycleCounter
         val inputVal = Mux(firstComputation,
           io.inputIn.bits(i)(pe),
           inputBuffer(i)(pe)(currentCycle))
 
-        // PE-first weight access: PE dimension is compile-time constant, only cycle is dynamic.
-        val product = nc.mul(inputVal, weights(pe)(currentCycle)(j))
+        // Weight access: j (output col) and pe are compile-time constants, only cycle is dynamic.
+        val product = nc.mul(inputVal, weights(j)(pe)(currentCycle))
         val productAccum = nc.toAccum(product)
         // TODO: Faster reduction?
         //       In each cycle, the partial sum produces a partial dot product result.
@@ -170,7 +177,7 @@ class DenseDataflowFold(layer: DenseLayer, outFifoDepth: Int = 2) extends Module
 
   // Connect computation results to output FIFO
   // TODO: Are there scenarios where the downstream layer can start eagerly working on partial results?
-  outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (latency - 1).U, false.B)
+  outputFifo.io.enq.valid := RegNext(isComputing && cycleCounter === (totalCyclesNeeded - 1).U, false.B)
 
   // TODO: Its not necessary to calculate all of this in each cycle
   // TODO: Is this too much combinational logic for one cycle?

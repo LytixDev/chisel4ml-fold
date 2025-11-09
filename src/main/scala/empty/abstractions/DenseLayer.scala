@@ -35,7 +35,7 @@ case class DenseLayer(
                        mulDt: IntegerDataType, // Data type for multiplication results
                        accDt: IntegerDataType, // Data type for accumulators
                        activationFunc: ActivationFunc = Identity,
-                       PEsPerOutput: Int
+                       multipliersPerDotProduct: Int
                      ) {
   // Convenience accessors
   def m = input.rows
@@ -47,25 +47,25 @@ case class DenseLayer(
   require(output.cols == k, s"Output cols must match weight cols")
   require(output.rows == m, s"Output rows must match input rows")
   //bias.foreach(b => require(b.cols == k && b.rows == 1, s"Bias must be 1x$k"))
-  require(PEsPerOutput >= 1 && PEsPerOutput <= n)
-  require(n % PEsPerOutput == 0)
+  require(multipliersPerDotProduct >= 1 && multipliersPerDotProduct <= n)
+  require(n % multipliersPerDotProduct == 0)
 }
 
 object DenseLayer {
   /* Create some dummy data for testing. Do not use for anything else ! */
   def withRandomWeights(
-    m: Int,
-    n: Int,
-    k: Int,
-    PEsPerOutput: Int,
-    inputBitWidth: Int = 8,
-    weightBitWidth: Int = 4,
-    outputBitWidth: Int = 8,
-    mulBitWidth: Int = 16,
-    accBitWidth: Int = 32,
-    withBias: Boolean = false,
-    activationFunc: ActivationFunc = Identity,
-    seed: Int = 42
+                         m: Int,
+                         n: Int,
+                         k: Int,
+                         multipliersPerOutputElement: Int,
+                         inputBitWidth: Int = 8,
+                         weightBitWidth: Int = 4,
+                         outputBitWidth: Int = 8,
+                         mulBitWidth: Int = 16,
+                         accBitWidth: Int = 32,
+                         withBias: Boolean = false,
+                         activationFunc: ActivationFunc = Identity,
+                         seed: Int = 42
   ): DenseLayer = {
     val rand = new scala.util.Random(seed)
 
@@ -114,7 +114,7 @@ object DenseLayer {
       mulDt = IntegerDataType(bitWidth = mulBitWidth, isSigned = true),
       accDt = IntegerDataType(bitWidth = accBitWidth, isSigned = true),
       activationFunc = activationFunc,
-      PEsPerOutput = PEsPerOutput
+      multipliersPerDotProduct = multipliersPerOutputElement
     )
   }
 }

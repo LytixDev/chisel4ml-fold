@@ -32,7 +32,7 @@ class MetricsTester extends AnyFlatSpec {
       output = outSpec,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 2
+      multipliersPerDotProduct = 2
     )
 
     val metrics = Metrics.calculateDenseLayerMetrics(layer)

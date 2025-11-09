@@ -9,20 +9,20 @@ object TinyMLP {
 
     val rand = new scala.util.Random(42)
     val in1 = TensorSpec(
-      rows = 1, cols = 16,
+      rows = 1, cols = 32,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
       shamt = -1
     )
     val weights1 = TensorData(
       spec = TensorSpec(
-        rows = 16, cols = 16,
+        rows = 32, cols = 32,
         dt = IntegerDataType(bitWidth = 4, isSigned = true),
         shamt = 2
       ),
-      data = Array.fill(16, 16)(rand.nextInt(8) - 4)
+      data = Array.fill(32, 32)(rand.nextInt(8) - 4)
     )
     val out1 = TensorSpec(
-      rows = 1, cols = 16,
+      rows = 1, cols = 32,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
       shamt = -3
     )
@@ -34,21 +34,21 @@ object TinyMLP {
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
       activationFunc = ReLU,
-      PEsPerOutput = 1
+      multipliersPerDotProduct = 16
     )
 
     val in2 = TensorSpec(
-      rows = 1, cols = 16,
+      rows = 1, cols = 32,
       dt = IntegerDataType(bitWidth = 8, isSigned = false),
       shamt = -3
     )
     val weights2 = TensorData(
       spec = TensorSpec(
-        rows = 16, cols = 1,
+        rows = 32, cols = 1,
         dt = IntegerDataType(bitWidth = 4, isSigned = true),
         shamt = 2
       ),
-      data = Array.fill(16, 1)(rand.nextInt(8) - 4)
+      data = Array.fill(32, 1)(rand.nextInt(8) - 4)
     )
     val out2 = TensorSpec(
       rows = 1, cols = 1,
@@ -62,7 +62,7 @@ object TinyMLP {
       output = out2,
       mulDt = IntegerDataType(bitWidth = 16, isSigned = true),
       accDt = IntegerDataType(bitWidth = 32, isSigned = true),
-      PEsPerOutput = 1
+      multipliersPerDotProduct = 16
     )
 
     Array(layer1, layer2)
