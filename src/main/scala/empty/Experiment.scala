@@ -8,9 +8,9 @@ import java.io.PrintWriter
 import scala.collection.mutable.ArrayBuffer
 
 /**
- * This generates 25 different Pipeline configurations across two dimensions:
+ * This generates 20 different Pipeline configurations across two dimensions:
  * - Network size (parameters): 10k, 50k, 100k, 250k, 500k
- * - Fold factor (i.e. multipliers per dot product): 1, ~25%, ~50%, ~75%, 100%
+ * - Fold factor (i.e. multipliers per dot product): 1, ~25%, ~50%, 100%
  *
  * The total number of configuration will be the cross product of the two varying dimensions.
  * For each configuration we elaborate 5 times and keep track of the elaboration time.
@@ -166,7 +166,6 @@ object Experiment extends App {
       (0.00, "1"),      // Serial
       (0.25, "25"),
       (0.50, "50"),
-      (0.75, "75"),
       (1.00, "100")     // Fully parallel
     )
 
