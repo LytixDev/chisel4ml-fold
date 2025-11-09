@@ -163,7 +163,7 @@ object Experiment extends App {
   def runExperiment(): Unit = {
     val paramCounts = Array(10000, 50000, 100000, 250000, 500000)
     val foldPercentages = Array(
-      (0.01, "1"),      // Serial
+      (0.00, "1"),      // Serial
       (0.25, "25"),
       (0.50, "50"),
       (0.75, "75"),
@@ -197,8 +197,10 @@ object Experiment extends App {
         println(s"  Calculating metrics...")
         val metrics = Metrics.calculatePipelineMetrics(layers)
 
-        println(s"  Running elaboration (5 times, generating Verilog on last run)...")
-        val (elaborationTimes, avgTime) = runMultipleElaborations(layers, runs = 5, verilogOutputName = Some(configName))
+        val nRuns = 3
+
+        println(s"  Running elaboration (${nRuns} times, generating Verilog on last run)...")
+        val (elaborationTimes, avgTime) = runMultipleElaborations(layers, runs = nRuns, verilogOutputName = Some(configName))
         //val elaborationTimes = Array(1.0, 1.0, 1.0, 1.0, 1.0)
         //val avgTime = 1.0
 
